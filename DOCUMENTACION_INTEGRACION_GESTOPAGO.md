@@ -16,6 +16,7 @@ La solución cumple con las restricciones operativas de GestoPago:
 * **Justificación:** La respuesta de `getProductList.do` es un documento XML que contiene atributos por elemento y etiquetas CDATA en campos como `<legend>`. JAXB es la especificación estándar de Java para mapeo objeto-XML (*Unmarshalling*), permitiendo tipado estricto mediante anotaciones (`@XmlRootElement`, `@XmlAccessorType`, `@XmlAttribute`, `@XmlElement`).
 
 ### 2.2 Uso de MongoDB en paralelo con PostgreSQL
+porque el profe dijo
 * **PostgreSQL:** Persistencia relacional para entidades de negocio transaccionales (`personas`, `gestopago_tokens`).
 * **MongoDB:** Almacén documental para catálogos semi-estructurados (`catalogo_productos`). Permite almacenar atributos variables por tipo de servicio sin requerir alteraciones de esquema relacional (DDL) ante cambios del proveedor.
 

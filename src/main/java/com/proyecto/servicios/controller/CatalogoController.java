@@ -34,8 +34,8 @@ public class CatalogoController {
     @GetMapping(value = "/productos", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Consultar catálogo de productos", description = "Devuelve los productos almacenados en MongoDB en formato JSON, con filtros opcionales")
     public ResponseEntity<List<ProductoResponseDto>> listarProductos(
-            @RequestParam(required = false) Integer idServicio,
-            @RequestParam(required = false) String buscar) {
+            @RequestParam(name = "idServicio", required = false) Integer idServicio,
+            @RequestParam(name = "buscar", required = false) String buscar) {
 
         List<ProductoDocument> docs;
         if (idServicio != null) {
@@ -55,7 +55,7 @@ public class CatalogoController {
 
     @GetMapping(value = "/productos/{idProducto}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Obtener producto por ID", description = "Devuelve los detalles de un producto específico")
-    public ResponseEntity<ProductoResponseDto> obtenerPorId(@PathVariable Integer idProducto) {
+    public ResponseEntity<ProductoResponseDto> obtenerPorId(@PathVariable(name = "idProducto") Integer idProducto) {
         return catalogoService.obtenerPorIdProducto(idProducto)
                 .map(doc -> ResponseEntity.ok(ProductoResponseDto.fromEntity(doc)))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
