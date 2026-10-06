@@ -14,4 +14,10 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByClienteId(Long clienteId);
 
     boolean existsByCorreo(String correo);
+
+    boolean existsByClienteId(Long clienteId);
+
+    org.springframework.data.domain.Page<Usuario> findByActivo(Boolean activo, org.springframework.data.domain.Pageable pageable);
+
+    org.springframework.data.domain.Page<Usuario> findByCorreoContainingIgnoreCase(String correo, org.springframework.data.domain.Pageable pageable);
 }
