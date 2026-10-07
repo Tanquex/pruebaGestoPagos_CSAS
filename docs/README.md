@@ -36,6 +36,11 @@ Para facilitar la revisión por áreas funcionales y técnicas, la documentació
    * Cifrado de contraseñas con BCrypt.
    * Endpoint de autenticación `POST /auth/login`.
 
+6. 🧪 [**Plan de Pruebas en Swagger y Explicación desde Cero**](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/pruebas/PLAN_DE_PRUEBAS_Y_EXPLICACION.md)
+   * Explicación pedagógica de la arquitectura y el código línea por línea.
+   * Flujo ordenado paso a paso para probar los 22 endpoints en Swagger.
+   * Datos JSON listos para copiar y pegar y validaciones de error esperadas.
+
 ---
 
 ## 3. Matriz de Endpoints REST
