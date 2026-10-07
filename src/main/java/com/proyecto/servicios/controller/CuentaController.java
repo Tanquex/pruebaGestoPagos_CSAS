@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -65,7 +66,7 @@ public class CuentaController {
     @Operation(summary = "Listar cuentas por cliente (Paginado)")
     public ResponseEntity<Page<CuentaResponseDto>> obtenerPorClienteId(
             @PathVariable(name = "clienteId") Long clienteId,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(cuentaService.obtenerPorClienteIdPaginado(clienteId, pageable));
     }
 
@@ -73,14 +74,14 @@ public class CuentaController {
     @Operation(summary = "Listar cuentas por estatus operativo (Paginado)", description = "Estatus disponibles: ACTIVA, INACTIVA, BLOQUEADA, CANCELADA")
     public ResponseEntity<Page<CuentaResponseDto>> obtenerPorEstatus(
             @PathVariable(name = "estatus") String estatus,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(cuentaService.obtenerPorEstatus(estatus, pageable));
     }
 
     @GetMapping(value = "/activas", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Listar todas las cuentas activas (Paginado)")
     public ResponseEntity<Page<CuentaResponseDto>> obtenerActivas(
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(cuentaService.obtenerActivas(pageable));
     }
 

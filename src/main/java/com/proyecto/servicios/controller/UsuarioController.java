@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -66,7 +67,7 @@ public class UsuarioController {
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Listar todos los usuarios (Paginado)")
     public ResponseEntity<Page<UsuarioResponseDto>> obtenerTodos(
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(usuarioService.obtenerTodos(pageable));
     }
 
@@ -75,7 +76,7 @@ public class UsuarioController {
     public ResponseEntity<Page<UsuarioResponseDto>> filtrar(
             @RequestParam(name = "activo", required = false) Boolean activo,
             @RequestParam(name = "correo", required = false) String correo,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
 
         if (activo != null) {
             return ResponseEntity.ok(usuarioService.obtenerPorActivo(activo, pageable));

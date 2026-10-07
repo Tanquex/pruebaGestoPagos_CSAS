@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -61,8 +62,7 @@ public class ClienteController {
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Listar todos los clientes paginados", description = "Devuelve página de clientes registrados. Satisface pruebas masivas.")
     public ResponseEntity<Page<ClienteResponseDto>> obtenerTodos(
-            @Parameter(description = "Paginación: page, size, sort")
-            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
         return ResponseEntity.ok(clienteService.obtenerTodos(pageable));
     }
 
@@ -107,7 +107,7 @@ public class ClienteController {
             @RequestParam(name = "nombre", required = false) String nombre,
             @RequestParam(name = "apellidoPaterno", required = false) String apellidoPaterno,
             @RequestParam(name = "apellidoMaterno", required = false) String apellidoMaterno,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
 
         if (nombre != null && !nombre.isBlank()) {
             return ResponseEntity.ok(clienteService.buscarPorNombre(nombre, pageable));
@@ -124,7 +124,7 @@ public class ClienteController {
     @GetMapping(value = "/activos", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Listar clientes activos (Paginado)")
     public ResponseEntity<Page<ClienteResponseDto>> obtenerActivos(
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(clienteService.obtenerActivos(pageable));
     }
 
@@ -134,7 +134,7 @@ public class ClienteController {
     public ResponseEntity<Page<ClienteResponseDto>> obtenerPorFechas(
             @RequestParam(name = "inicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
             @RequestParam(name = "fin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(clienteService.obtenerPorRangoFechas(inicio, fin, pageable));
     }
 

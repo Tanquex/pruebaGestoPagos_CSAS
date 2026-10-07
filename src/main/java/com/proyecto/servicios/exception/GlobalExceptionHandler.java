@@ -93,6 +93,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
     }
 
+    @ExceptionHandler(org.springframework.data.mapping.PropertyReferenceException.class)
+    public ResponseEntity<GenericResponse> handlePropertyReferenceException(org.springframework.data.mapping.PropertyReferenceException ex) {
+        log.warn("Parámetro de ordenamiento inválido: {}", ex.getMessage());
+        GenericResponse errorResponse = new GenericResponse();
+        errorResponse.setCodigo(HttpStatus.BAD_REQUEST.value());
+        errorResponse.setMensaje("Propiedad de ordenamiento o filtrado inválida: '" + ex.getPropertyName() + "'");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
     @ExceptionHandler(GestoPagoIntegrationException.class)
     public ResponseEntity<GenericResponse> handleIntegrationException(GestoPagoIntegrationException ex) {
         log.error("Excepción en integración externa GestoPago: {}", ex.getMessage());
