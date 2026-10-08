@@ -111,6 +111,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorResponse);
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<GenericResponse> handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        GenericResponse errorResponse = new GenericResponse();
+        errorResponse.setCodigo(HttpStatus.NOT_FOUND.value());
+        errorResponse.setMensaje("Recurso no encontrado: " + ex.getResourcePath());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<GenericResponse> handleGenericException(Exception ex) {
         log.error("Error no controlado en la aplicación: ", ex);
