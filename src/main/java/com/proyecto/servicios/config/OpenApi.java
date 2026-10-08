@@ -26,7 +26,7 @@ public class OpenApi {
                         .version("1.0.0")
                         .contact(new Contact().name("Equipo de Arquitectura e Integración GestoPago")))
                 .servers(List.of(
-                        new Server().url("http://localhost:8081").description("Servidor Local de Desarrollo")
+                        new Server().url("/").description("Servidor Principal (Local / Render)")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
