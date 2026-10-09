@@ -11,6 +11,19 @@
 
 ---
 
+## 🎯 Matriz de Entregables Oficiales Solicitados
+
+| # | Entregable Oficial Solicitado | Estado | Ubicación en el Repositorio / Documentación |
+|---|---|:---:|---|
+| **1** | **Diagrama entidad-relación** | ✅ Completo | Ver [Sección ERD](#️-modelo-entidad-relación-erd-realista-en-mermaid) y archivo técnico [`DISENO_BASE_DE_DATOS.md`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/bd/DISENO_BASE_DE_DATOS.md). |
+| **2** | **Script de creación de base de datos** | ✅ Completo | Script DDL independiente [`schema_completo.sql`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/schema_completo.sql) y migración Flyway [`V3__onboarding_clientes.sql`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/main/resources/db/migration/V3__onboarding_clientes.sql). |
+| **3** | **Código fuente completo** | ✅ Completo | Proyecto Spring Boot 3.3.6 / Java 21 estructurado en [`src/main/java/com/proyecto/servicios`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/main/java/com/proyecto/servicios). |
+| **4** | **API REST funcional** | ✅ Completo | 22 endpoints en producción: [Swagger UI en Vivo (Render)](https://pruebagestopagos-csas.onrender.com/swagger-ui/index.html) y local en `http://localhost:8081/swagger-ui.html`. |
+| **5** | **Evidencias de pruebas realizadas** | ✅ Completo | 5 suites de pruebas unitarias automatizadas y guía detallada en [`PLAN_DE_PRUEBAS_Y_EXPLICACION.md`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/pruebas/PLAN_DE_PRUEBAS_Y_EXPLICACION.md). |
+| **6** | **Documento técnico explicando la solución** | ✅ Completo | Índice temático desglosado a continuación y en el [`README.md` principal](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/README.md). |
+
+---
+
 ## 📚 Índice de Documentación Técnica
 
 La documentación detallada se encuentra modularizada en las siguientes guías técnicas:
