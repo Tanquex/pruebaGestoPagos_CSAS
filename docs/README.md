@@ -1,108 +1,153 @@
-# Proyecto Integrador: Onboarding de Clientes Personas Físicas
+# 🏦 Proyecto Integrador: Onboarding de Clientes Personas Físicas
 
-## 1. Visión General
-Este sistema implementa el flujo de **Onboarding Financiero de Clientes Personas Físicas** bajo una arquitectura de microservicio REST con **Spring Boot 3.3.6**, **Java 21**, persistencia relacional en **PostgreSQL 16** y persistencia documental en **MongoDB 7.0**.
+[![Java](https://img.shields.io/badge/Java-21-orange.svg?style=flat&logo=openjdk)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.6-brightgreen.svg?style=flat&logo=springboot)](https://spring.io/projects/spring-boot)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg?style=flat&logo=postgresql)](https://www.postgresql.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7.0%20Atlas-green.svg?style=flat&logo=mongodb)](https://www.mongodb.com/)
+[![Render](https://img.shields.io/badge/Render-Deployed%20Live-46E3B7.svg?style=flat&logo=render)](https://pruebagestopagos-csas.onrender.com/swagger-ui/index.html)
 
-El objetivo central es permitir a una institución financiera registrar clientes personas físicas, validar rigurosamente su identidad y datos de contacto, aperturarles de forma automática una cuenta bancaria con saldo inicial y crearles credenciales de acceso con contraseñas cifradas (**BCrypt**), permitiendo consultas, actualizaciones parciales y bajas lógicas.
+> 🚀 **Despliegue en Vivo en Render:**  
+> **Swagger UI:** [https://pruebagestopagos-csas.onrender.com/swagger-ui/index.html](https://pruebagestopagos-csas.onrender.com/swagger-ui/index.html)
 
 ---
 
-## 2. Índice de Documentación Unitaria
+## 📚 Índice de Documentación Técnica
 
-Para facilitar la revisión por áreas funcionales y técnicas, la documentación se encuentra organizada en guías independientes:
+La documentación detallada se encuentra modularizada en las siguientes guías técnicas:
 
 1. 🗄️ [**Diseño de Base de Datos y Modelo Físico**](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/bd/DISENO_BASE_DE_DATOS.md)
-   * Diagrama Entidad-Relación (ERD) en Mermaid.
-   * Justificación técnica de tipos de datos en PostgreSQL (`NUMERIC`, `CHAR`, `VARCHAR`, `TEXT`, `BIGSERIAL`).
-   * Estrategia de indexación B-Tree preparada para pruebas masivas de **100,000+ registros**.
-   * Integridad referencial y restricciones `UNIQUE`.
-
+   * Modelo físico en PostgreSQL y migración Flyway `V3`.
+   * Justificación técnica de tipos de datos (`NUMERIC(15,2)`, `CHAR(18)`, `CHAR(10)`).
+   * Estrategia de 14 índices B-Tree para consultas masivas de **100,000+ registros**.
 2. 🛡️ [**Reglas de Negocio y Validaciones**](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/validaciones/REGLAS_Y_VALIDACIONES.md)
    * Expresiones regulares oficiales de CURP y RFC mexicanos.
-   * Validación estricta de mayoría de edad (18+ años), teléfonos de 10 dígitos y CP de 5 dígitos.
-   * Matriz de validación y control de excepciones personalizadas.
-
+   * Validación estricta de mayoría de edad ($\ge 18$ años cumplidos).
+   * Matriz de excepciones HTTP (`400`, `401`, `404`, `409`, `422`).
 3. 🚀 [**Flujo Transaccional de Onboarding**](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/onboarding/REGISTRO_Y_ONBOARDING.md)
-   * Orquestación atómica: Domicilio ➔ Cliente ➔ Cuenta Bancaria ➔ Usuario BCrypt.
-   * Algoritmo de generación de cuenta bancaria sin colisiones.
-
+   * Orquestación atómica con `@Transactional`: Domicilio ➔ Cliente ➔ Cuenta Bancaria ➔ Usuario BCrypt.
+   * Algoritmo de generación de cuenta bancaria anticolisión con prefijo BIN `4152...`.
 4. 📊 [**Consultas, Paginación y Operaciones CRUD**](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/crud/CONSULTAS_Y_OPERACIONES.md)
-   * Endpoints de consulta con soporte de paginación obligatoria (`Pageable`) para 100k registros.
-   * Actualización parcial con protección de campos inmutables (CURP, RFC, número de cuenta).
+   * Paginación obligatoria `Pageable` con `@ParameterObject` para Swagger.
+   * Inmutabilidad estricta de CURP, RFC y número de cuenta.
    * Baja lógica en cascada (desactivación simultánea de cliente, cuentas y usuario).
-
 5. 🔐 [**Seguridad, Autenticación y Cabeceras**](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/seguridad/AUTENTICACION_Y_HEADERS.md)
-   * Cabecera `Authorization: Bearer <TOKEN>` documental no bloqueante en Swagger y endpoints.
-   * Cifrado de contraseñas con BCrypt.
-   * Endpoint de autenticación `POST /auth/login`.
-
+   * Cabecera `Authorization: Bearer <TOKEN>` documental no bloqueante en Swagger.
+   * Hashing de contraseñas con BCrypt (factor de costo 10).
+   * Generación y validación de tokens JWT estándar (HMAC-SHA256).
 6. 🧪 [**Plan de Pruebas en Swagger y Explicación desde Cero**](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/docs/pruebas/PLAN_DE_PRUEBAS_Y_EXPLICACION.md)
-   * Explicación pedagógica de la arquitectura y el código línea por línea.
-   * Flujo ordenado paso a paso para probar los 22 endpoints en Swagger.
-   * Datos JSON listos para copiar y pegar y validaciones de error esperadas.
+   * Explicación pedagógica de la arquitectura y flujo de la aplicación.
+   * Guía cronológica paso a paso para probar los 22 endpoints en Swagger.
 
 ---
 
-## 3. Matriz de Endpoints REST
+## 🗄️ Modelo Entidad-Relación (ERD) Realista en Mermaid
 
-| Módulo | Método | Endpoint | Descripción | Código HTTP |
-|---|---|---|---|---|
-| **Clientes** | `POST` | `/clientes` | Onboarding completo (Cliente + Cuenta + Usuario) | 201 Created |
-| **Clientes** | `GET` | `/clientes` | Listado paginado de clientes | 200 OK |
-| **Clientes** | `GET` | `/clientes/{id}` | Consulta por ID primario | 200 OK |
-| **Clientes** | `GET` | `/clientes/curp/{curp}` | Consulta indexada por CURP | 200 OK |
-| **Clientes** | `GET` | `/clientes/rfc/{rfc}` | Consulta indexada por RFC | 200 OK |
-| **Clientes** | `GET` | `/clientes/correo` | Consulta indexada por correo | 200 OK |
-| **Clientes** | `GET` | `/clientes/cuenta/{numeroCuenta}` | Consulta por número de cuenta bancaria | 200 OK |
-| **Clientes** | `GET` | `/clientes/buscar` | Búsqueda por nombre o apellidos (paginado) | 200 OK |
-| **Clientes** | `GET` | `/clientes/activos` | Listado de clientes activos (paginado) | 200 OK |
-| **Clientes** | `GET` | `/clientes/fechas` | Búsqueda por rango de fechas (paginado) | 200 OK |
-| **Clientes** | `PATCH` | `/clientes/{id}` | Actualización parcial (inmutabilidad CURP/RFC) | 200 OK |
-| **Clientes** | `DELETE` | `/clientes/{id}` | Baja lógica en cascada (desactiva cuentas/usuario) | 204 No Content |
-| **Cuentas** | `POST` | `/cuentas` | Apertura de cuenta bancaria adicional | 201 Created |
-| **Cuentas** | `GET` | `/cuentas/{numeroCuenta}` | Consulta por número de cuenta | 200 OK |
-| **Cuentas** | `GET` | `/cuentas/cliente/{clienteId}` | Cuentas asociadas a un cliente (paginado) | 200 OK |
-| **Cuentas** | `GET` | `/cuentas/estatus/{estatus}` | Filtro por estatus operativo (paginado) | 200 OK |
-| **Cuentas** | `GET` | `/cuentas/activas` | Listado de cuentas activas (paginado) | 200 OK |
-| **Cuentas** | `GET` | `/cuentas/{numeroCuenta}/saldo` | Consulta rápida de saldo | 200 OK |
-| **Cuentas** | `PATCH` | `/cuentas/{numeroCuenta}/estatus` | Actualizar estatus (ACTIVA, BLOQUEADA, etc.) | 200 OK |
-| **Seguridad** | `POST` | `/auth/login` | Inicio de sesión, validación BCrypt y JWT Bearer | 200 OK |
-| **Usuarios** | `POST` | `/usuarios` | Alta manual de usuario para cliente existente | 201 Created |
-| **Usuarios** | `GET` | `/usuarios/{id}` | Consulta de usuario por ID | 200 OK |
-| **Usuarios** | `GET` | `/usuarios/cliente/{clienteId}` | Consulta de usuario por cliente | 200 OK |
-| **Usuarios** | `GET` | `/usuarios` | Listado de todos los usuarios (paginado) | 200 OK |
-| **Usuarios** | `GET` | `/usuarios/filtro` | Filtro por estado activo o correo (paginado) | 200 OK |
+```mermaid
+erDiagram
+    DOMICILIOS ||--|| CLIENTES : "reside en (1:1)"
+    CLIENTES ||--o{ CUENTAS : "posee (1:N)"
+    CLIENTES ||--|| USUARIOS : "autentica con (1:1)"
+    GESTOPAGO_TOKENS {
+        bigserial id PK
+        int id_distribuidor
+        varchar codigo_dispositivo
+        text token
+        timestamp fecha_creacion
+        timestamp fecha_expiracion
+    }
+
+    DOMICILIOS {
+        bigserial id PK
+        varchar_150 calle
+        varchar_20 numero_exterior
+        varchar_20 numero_interior "nullable"
+        varchar_100 colonia
+        varchar_100 municipio
+        varchar_100 estado
+        char_5 codigo_postal
+        varchar_50 pais
+        timestamp fecha_creacion
+        timestamp fecha_actualizacion
+    }
+
+    CLIENTES {
+        bigserial id PK
+        bigint domicilio_id FK "UNIQUE"
+        varchar_50 nombre
+        varchar_50 segundo_nombre "nullable"
+        varchar_50 apellido_paterno
+        varchar_50 apellido_materno
+        date fecha_nacimiento
+        char_18 curp "UK - RENAPO"
+        varchar_13 rfc "UK - SAT"
+        varchar_10 sexo
+        varchar_50 nacionalidad
+        varchar_20 estado_civil
+        varchar_100 correo "UK"
+        char_10 telefono_movil
+        varchar_15 telefono_alternativo "nullable"
+        varchar_100 ocupacion
+        varchar_100 empresa
+        numeric_15_2 ingreso_mensual
+        boolean activo "Index B-Tree"
+        timestamp fecha_creacion "Index B-Tree"
+        timestamp fecha_actualizacion
+    }
+
+    CUENTAS {
+        bigserial id PK
+        bigint cliente_id FK
+        varchar_20 numero_cuenta "UK - 16 Dígitos BIN 4152"
+        numeric_15_2 saldo "CHECK saldo >= 0"
+        varchar_20 estatus "ACTIVA | INACTIVA | BLOQUEADA"
+        boolean activo "Index B-Tree"
+        timestamp fecha_creacion "Index B-Tree"
+        timestamp fecha_actualizacion
+    }
+
+    USUARIOS {
+        bigserial id PK
+        bigint cliente_id FK "UNIQUE"
+        varchar_100 correo "UK"
+        text password_hash "BCrypt Cost 10"
+        boolean activo "Index B-Tree"
+        timestamp fecha_creacion "Index B-Tree"
+        timestamp fecha_actualizacion
+    }
+
+    MONGODB_PRODUCTOS {
+        ObjectId id PK
+        int idServicio "Index"
+        varchar nombre
+        varchar tipoFront
+        varchar sku
+        numeric comision
+    }
+```
 
 ---
 
-## 4. Criterios de Evaluación del Profesor (100% Cubierto)
+## 🧪 Evidencias de Pruebas
 
-| Criterio | Ponderación | Estado | Implementación Clave |
-|---|---|---|---|
-| **Base de Datos** | **20%** | **Completado (100%)** | Migración Flyway `V3__onboarding_clientes.sql` con 4 tablas, tipos exactos (`NUMERIC`, `CHAR`, `VARCHAR`, `TEXT`), 14 índices B-Tree para 100k registros y llaves foráneas. |
-| **Validaciones** | **20%** | **Completado (100%)** | Jakarta Bean Validation con Regex oficial CURP/RFC, cálculo exacto de edad $\ge 18$, teléfonos 10 dígitos, CP 5 dígitos, saldo no negativo y excepciones personalizadas HTTP 400/404/409/422. |
-| **Implementación Java** | **25%** | **Completado (100%)** | Entidades JPA con Lombok, Repositorios con Spring Data, arquitectura en capas, servicios transaccionales `@Transactional`, hashing de contraseñas con BCrypt (factor 10), generador de cuenta sin colisiones y pruebas con Mockito. |
-| **API REST** | **15%** | **Completado (100%)** | Controladores con `@RestController`, verbos HTTP adecuados (`POST`, `GET`, `PATCH`, `DELETE`), códigos HTTP precisos (`200`, `201`, `204`, `400`, `401`, `404`, `409`, `422`) y documentación Swagger interactiva con esquema JWT Bearer. |
-| **Consultas y Persistencia**| **10%** | **Completado (100%)** | Búsquedas por ID, CURP, RFC, Cuenta, Nombre, Fechas, Estatus con paginación obligatoria `Pageable` optimizada para cargas masivas. |
-| **Documentación** | **10%** | **Completado (100%)** | Directorio modular `/docs` con guías independientes, diagramas Mermaid ERD y secuencia, justificación técnica y README unificado. |
+### Resumen de Suites Unitarias (100% Exitosas)
+```text
+> Task :test
+BUILD SUCCESSFUL in 32s
+5 actionable tasks: 3 executed, 2 up-to-date
+```
+- `ClienteServiceImplTest`: 8/8 pruebas aprobadas (Onboarding atómico, mayoría de edad, unicidad, inmutabilidad y cascada).
+- `CuentaServiceImplTest`: 5/5 pruebas aprobadas (Apertura adicional, saldo, bloqueo).
+- `AuthServiceImplTest`: 4/4 pruebas aprobadas (Login JWT, validación de contraseñas BCrypt).
+- `CatalogoProductoServiceImplTest`: Pruebas de integración Feign y MongoDB.
+- `JaxbXmlParserTest`: Deserialización XML JAXB.
 
----
-
-## 5. Instrucciones de Ejecución Local
-
-1. **Asegurar Contenedores Docker Activos:**
-   ```powershell
-   docker ps
-   # Deben estar activos: gestopago-postgres (puerto 5432) y gestopago-mongo (puerto 27017)
-   ```
-2. **Ejecutar Pruebas Unitarias:**
-   ```powershell
-   .\gradlew.bat test
-   ```
-3. **Iniciar la Aplicación:**
-   ```powershell
-   .\gradlew.bat bootRun
-   ```
-4. **Probar con Swagger UI:**
-   Abrir en el navegador:
-   `http://localhost:8081/swagger-ui.html` o `http://localhost:8081/swagger-ui/index.html`
+### Casos de Prueba REST Ejecutados:
+- **`POST /clientes` ➔ `201 Created`:** Onboarding exitoso con generación de tarjeta `4152...` y credenciales.
+- **`POST /clientes` ➔ `422 Unprocessable Entity`:** Rechazo inmediato por minoría de edad (< 18 años).
+- **`POST /clientes` ➔ `409 Conflict`:** Rechazo por duplicidad de CURP o RFC.
+- **`POST /auth/login` ➔ `200 OK`:** Validación de credenciales y emisión de Bearer Token JWT.
+- **`POST /auth/login` ➔ `401 Unauthorized`:** Rechazo por contraseña incorrecta o usuario inactivo.
+- **`GET /cuentas/{numero}/saldo` ➔ `200 OK`:** Consulta rápida de saldo contable.
+- **`PATCH /clientes/{id}` ➔ `200 OK`:** Actualización de datos garantizando inmutabilidad de CURP y RFC.
+- **`DELETE /clientes/{id}` ➔ `204 No Content`:** Baja lógica en cascada (inactiva cliente, cuentas y usuario).
+- **`GET /api/v1/catalogo/productos` ➔ `200 OK`:** Consulta de catálogo NoSQL conectado a MongoDB Atlas.
