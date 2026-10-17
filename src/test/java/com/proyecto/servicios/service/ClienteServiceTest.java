@@ -8,6 +8,8 @@ import com.proyecto.servicios.exception.ClienteNoEncontradoException;
 import com.proyecto.servicios.exception.ClienteYaExisteException;
 import com.proyecto.servicios.exception.ValidacionNegocioException;
 import com.proyecto.servicios.model.cliente.ActualizaClienteRequest;
+import com.proyecto.servicios.model.cliente.BajaClienteRequest;
+import com.proyecto.servicios.model.cliente.ClienteConsultaRequest;
 import com.proyecto.servicios.model.cliente.ClienteResponseDto;
 import com.proyecto.servicios.model.cliente.DomicilioDto;
 import com.proyecto.servicios.model.cliente.RegistroClienteRequest;
@@ -15,7 +17,6 @@ import com.proyecto.servicios.repositorys.cliente.ClienteRepository;
 import com.proyecto.servicios.repositorys.cliente.CuentaRepository;
 import com.proyecto.servicios.repositorys.cliente.DomicilioRepository;
 import com.proyecto.servicios.repositorys.cliente.UsuarioRepository;
-import com.proyecto.servicios.service.Impl.ClienteServiceImpl;
 import com.proyecto.servicios.util.GeneradorCuentaUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,11 +25,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -37,7 +43,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class ClienteServiceImplTest {
+class ClienteServiceTest {
 
     @Mock
     private ClienteRepository clienteRepository;
@@ -58,7 +64,7 @@ class ClienteServiceImplTest {
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
-    private ClienteServiceImpl clienteService;
+    private ClienteService clienteService;
 
     private RegistroClienteRequest requestValido;
 
@@ -103,40 +109,40 @@ class ClienteServiceImplTest {
         when(clienteRepository.existsByRfc(anyString())).thenReturn(false);
         when(clienteRepository.existsByCorreo(anyString())).thenReturn(false);
 
-        Domicilio domGuardado = requestValido.getDomicilio().toEntity();
-        domGuardado.setId(1L);
-        when(domicilioRepository.save(any(Domicilio.class))).thenReturn(domGuardado);
+        Domicilio domicilio = requestValido.getDomicilio().toEntity();
+        domicilio.setId(10L);
+        when(domicilioRepository.save(any(Domicilio.class))).thenReturn(domicilio);
 
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> {
             Cliente c = invocation.getArgument(0);
-            c.setId(10L);
-            c.setCuentas(new ArrayList<>());
+            c.setId(1L);
             return c;
         });
 
-        when(generadorCuentaUtil.generarNumeroCuentaUnico()).thenReturn("4152123456789012");
+        when(generadorCuentaUtil.generarNumeroCuentaUnico()).thenReturn("4152849102938475");
         when(cuentaRepository.save(any(Cuenta.class))).thenAnswer(invocation -> {
-            Cuenta c = invocation.getArgument(0);
-            c.setId(100L);
-            return c;
+            Cuenta cu = invocation.getArgument(0);
+            cu.setId(100L);
+            return cu;
         });
 
-        when(passwordEncoder.encode(anyString())).thenReturn("$2a$10$encodedHashPassword");
+        when(passwordEncoder.encode(anyString())).thenReturn("$2a$10$encodedHashString12345");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> {
             Usuario u = invocation.getArgument(0);
-            u.setId(50L);
+            u.setId(200L);
             return u;
         });
 
-        ClienteResponseDto resultado = clienteService.registrarCliente(requestValido);
+        ClienteResponseDto response = clienteService.registrarCliente(requestValido);
 
-        assertNotNull(resultado);
-        assertEquals(10L, resultado.getId());
-        assertEquals("Juan", resultado.getNombre());
-        assertEquals("PELJ950615HDFRMN01", resultado.getCurp());
-        assertEquals(1, resultado.getCuentas().size());
-        assertEquals("4152123456789012", resultado.getCuentas().get(0).getNumeroCuenta());
-        assertTrue(resultado.getActivo());
+        assertNotNull(response);
+        assertEquals(1L, response.getId());
+        assertEquals("PELJ950615HDFRMN01", response.getCurp());
+        assertEquals("PELJ9506151A2", response.getRfc());
+        assertTrue(response.getActivo());
+        assertNotNull(response.getDomicilio());
+        assertFalse(response.getCuentas().isEmpty());
+        assertEquals("4152849102938475", response.getCuentas().get(0).getNumeroCuenta());
 
         verify(domicilioRepository).save(any(Domicilio.class));
         verify(clienteRepository).save(any(Cliente.class));
@@ -145,14 +151,14 @@ class ClienteServiceImplTest {
     }
 
     @Test
-    @DisplayName("Rechazar registro si el cliente es menor de edad (<18 años)")
+    @DisplayName("Rechazar registro si el cliente es menor de edad (< 18 años)")
     void testRegistrarCliente_MenorDeEdad_LanzaExcepcion() {
-        requestValido.setFechaNacimiento(LocalDate.now().minusYears(17));
+        requestValido.setFechaNacimiento(LocalDate.now().minusYears(16));
 
         ValidacionNegocioException ex = assertThrows(ValidacionNegocioException.class, () ->
                 clienteService.registrarCliente(requestValido));
 
-        assertTrue(ex.getMessage().contains("mayor de edad"));
+        assertTrue(ex.getMessage().contains("El cliente debe ser mayor de edad"));
         verifyNoInteractions(domicilioRepository, cuentaRepository, usuarioRepository);
     }
 
@@ -164,7 +170,7 @@ class ClienteServiceImplTest {
         assertThrows(ClienteYaExisteException.class, () ->
                 clienteService.registrarCliente(requestValido));
 
-        verify(clienteRepository, never()).save(any());
+        verify(clienteRepository, never()).save(any(Cliente.class));
     }
 
     @Test
@@ -189,8 +195,8 @@ class ClienteServiceImplTest {
     }
 
     @Test
-    @DisplayName("Buscar cliente por CURP exitoso")
-    void testObtenerPorCurp_Exitoso() {
+    @DisplayName("Consultar clientes dinámicamente con filtros combinados")
+    void testConsultarClientes_Dinamico() {
         Cliente cliente = Cliente.builder()
                 .id(1L)
                 .nombre("Juan")
@@ -200,22 +206,24 @@ class ClienteServiceImplTest {
                 .rfc("PELJ9506151A2")
                 .correo("juan@test.com")
                 .activo(true)
+                .cuentas(new ArrayList<>())
                 .build();
 
-        when(clienteRepository.findByCurp("PELJ950615HDFRMN01")).thenReturn(Optional.of(cliente));
+        Page<Cliente> page = new PageImpl<>(List.of(cliente));
+        when(clienteRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
 
-        ClienteResponseDto response = clienteService.obtenerPorCurp("PELJ950615HDFRMN01");
-        assertNotNull(response);
-        assertEquals("PELJ950615HDFRMN01", response.getCurp());
-    }
+        ClienteConsultaRequest queryReq = ClienteConsultaRequest.builder()
+                .nombre("Juan")
+                .activo(true)
+                .pagina(0)
+                .tamanoPagina(10)
+                .build();
 
-    @Test
-    @DisplayName("Buscar cliente por CURP inexistente lanza ClienteNoEncontradoException")
-    void testObtenerPorCurp_NoEncontrado() {
-        when(clienteRepository.findByCurp("INEXISTENTE12345678")).thenReturn(Optional.empty());
+        Page<ClienteResponseDto> result = clienteService.consultarClientes(queryReq);
 
-        assertThrows(ClienteNoEncontradoException.class, () ->
-                clienteService.obtenerPorCurp("INEXISTENTE12345678"));
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals("PELJ950615HDFRMN01", result.getContent().get(0).getCurp());
     }
 
     @Test
@@ -237,11 +245,12 @@ class ClienteServiceImplTest {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(i -> i.getArgument(0));
 
         ActualizaClienteRequest updateReq = ActualizaClienteRequest.builder()
+                .id(1L)
                 .nombre("Juan Modificado")
                 .telefonoMovil("5599887766")
                 .build();
 
-        ClienteResponseDto actualizado = clienteService.actualizarParcial(1L, updateReq);
+        ClienteResponseDto actualizado = clienteService.actualizarParcial(updateReq);
         assertEquals("Juan Modificado", actualizado.getNombre());
         assertEquals("5599887766", actualizado.getTelefonoMovil());
         // Se preservan los datos oficiales
@@ -268,13 +277,13 @@ class ClienteServiceImplTest {
         Cliente cliente = Cliente.builder()
                 .id(1L)
                 .activo(true)
-                .cuentas(new ArrayList<>(java.util.List.of(cuenta)))
+                .cuentas(new ArrayList<>(List.of(cuenta)))
                 .usuario(usuario)
                 .build();
 
         when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente));
 
-        clienteService.darDeBajaLogica(1L);
+        clienteService.darDeBajaLogica(new BajaClienteRequest(1L));
 
         assertFalse(cliente.getActivo());
         assertFalse(cuenta.getActivo());

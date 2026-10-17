@@ -20,6 +20,10 @@ import java.math.BigDecimal;
 @Schema(description = "Solicitud de actualización parcial de cliente (No permite modificar CURP ni RFC)")
 public class ActualizaClienteRequest {
 
+    @jakarta.validation.constraints.NotNull(message = "El ID del cliente es obligatorio para la actualización")
+    @Schema(description = "Identificador del cliente a actualizar", example = "1")
+    private Long id;
+
     @Size(min = 2, max = 50, message = "El nombre debe tener entre 2 y 50 caracteres")
     @Pattern(regexp = "^$|^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\\s]+$", message = "El nombre solo debe contener letras y espacios")
     @Schema(example = "Juan")
