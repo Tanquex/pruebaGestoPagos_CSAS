@@ -37,7 +37,7 @@ public class PersonaController {
         return new ResponseEntity<>(personaService.actualizaPersona(personasRequest), HttpStatus.OK);
     }
     @PutMapping(value = "/personasElimina", produces =MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<GenericResponse> actualizUser(@Valid @RequestBody EliminaPersonaRequest personasRequest){
+    public ResponseEntity<GenericResponse> eliminaUser(@Valid @RequestBody EliminaPersonaRequest personasRequest){
 
         return new ResponseEntity<>(personaService.eliminaPersona(personasRequest), HttpStatus.OK);
     }

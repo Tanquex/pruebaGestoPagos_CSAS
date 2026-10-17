@@ -427,39 +427,63 @@ BUILD SUCCESSFUL in 32s
 
 ---
 
-#### Caso 6: Consulta Rápida de Saldo
-- **Endpoint:** `GET /cuentas/4152849102938475/saldo`
-- **Resultado:** **`HTTP 200 OK`**
+#### Caso 6: Consulta Unificada de Cuenta y Saldo (Sin Path Variables)
+- **Endpoint:** `POST /cuentas/consultar`
+- **Request Payload:**
 ```json
 {
-  "numeroCuenta": "4152849102938475",
-  "saldo": 2500.00
+  "numeroCuenta": "4152849102938475"
+}
+```
+- **Resultado:** **`HTTP 200 OK`** (Paginado / Lista)
+```json
+{
+  "content": [
+    {
+      "id": 1,
+      "clienteId": 1,
+      "numeroCuenta": "4152849102938475",
+      "saldo": 2500.00,
+      "estatus": "ACTIVA",
+      "activo": true,
+      "fechaCreacion": "2026-03-15T10:30:00"
+    }
+  ],
+  "totalElements": 1,
+  "totalPages": 1
 }
 ```
 
 ---
 
-#### Caso 7: Actualización Parcial con Inmutabilidad de Identidad
-- **Endpoint:** `PATCH /clientes/1`
+#### Caso 7: Actualización Parcial con Inmutabilidad de Identidad (ID en Request Body)
+- **Endpoint:** `PATCH /clientes`
 - **Request Payload:**
 ```json
 {
+  "id": 1,
   "telefonoMovil": "5599887766",
   "empresa": "Tech Solutions Pro",
   "ingresoMensual": 45000.00
 }
 ```
 - **Resultado:** **`HTTP 200 OK`**  
-  *Se actualiza el teléfono y empleo; el sistema previene por diseño cualquier modificación a la CURP y el RFC.*
+  *Se actualiza el teléfono y empleo; el sistema previene por diseño cualquier modificación a la CURP, RFC o número de cuenta (campos inmutables controlados por el servidor).*
 
 ---
 
-#### Caso 8: Baja Lógica en Cascada (Soft Delete)
-- **Endpoint:** `DELETE /clientes/1`
+#### Caso 8: Baja Lógica en Cascada (Soft Delete con ID en Request Body)
+- **Endpoint:** `DELETE /clientes`
+- **Request Payload:**
+```json
+{
+  "id": 1
+}
+```
 - **Resultado:** **`HTTP 204 No Content`**
 - **Comprobación de la Cascada:**
-  1. `GET /clientes/1`: El cliente ahora tiene `"activo": false`.
-  2. `GET /cuentas/cliente/1`: Todas sus cuentas asociadas cambiaron a `"estatus": "INACTIVA"` y `"activo": false`.
+  1. `POST /clientes/consultar` con `{"id": 1}`: El cliente ahora figura con `"activo": false`.
+  2. `POST /cuentas/consultar` con `{"clienteId": 1}`: Todas sus cuentas asociadas cambiaron automáticamente a `"estatus": "INACTIVA"` y `"activo": false`.
   3. `POST /auth/login`: Intento de inicio de sesión rechazado con **`HTTP 401 Unauthorized`** por usuario inactivo.
 
 ---

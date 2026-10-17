@@ -160,7 +160,7 @@ BUILD SUCCESSFUL in 32s
 - **`POST /clientes` ➔ `409 Conflict`:** Rechazo por duplicidad de CURP o RFC.
 - **`POST /auth/login` ➔ `200 OK`:** Validación de credenciales y emisión de Bearer Token JWT.
 - **`POST /auth/login` ➔ `401 Unauthorized`:** Rechazo por contraseña incorrecta o usuario inactivo.
-- **`GET /cuentas/{numero}/saldo` ➔ `200 OK`:** Consulta rápida de saldo contable.
-- **`PATCH /clientes/{id}` ➔ `200 OK`:** Actualización de datos garantizando inmutabilidad de CURP y RFC.
-- **`DELETE /clientes/{id}` ➔ `204 No Content`:** Baja lógica en cascada (inactiva cliente, cuentas y usuario).
-- **`GET /api/v1/catalogo/productos` ➔ `200 OK`:** Consulta de catálogo NoSQL conectado a MongoDB Atlas.
+- **`POST /cuentas/consultar` ➔ `200 OK`:** Consulta unificada de cuentas y saldo contable en el Request Body.
+- **`PATCH /clientes` ➔ `200 OK`:** Actualización de datos con ID en Request Body garantizando inmutabilidad de CURP y RFC.
+- **`DELETE /clientes` ➔ `204 No Content`:** Baja lógica en cascada con ID en Request Body (inactiva cliente, cuentas y usuario).
+- **`POST /api/v1/catalogo/productos/consultar` ➔ `200 OK`:** Consulta dinámica de catálogo NoSQL conectado a MongoDB Atlas.

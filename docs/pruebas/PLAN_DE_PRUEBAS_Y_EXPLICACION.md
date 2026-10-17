@@ -167,105 +167,119 @@ Ahora vamos a autenticarnos con el usuario que se creó en el Paso 1.
 
 ---
 
-### 🟢 PASO 3: Consultas de Clientes
+### 🟢 PASO 3: Consultas Dinámicas de Clientes (Único Endpoint con Criteria API)
 
-Prueba los siguientes endpoints de la sección **Clientes**:
+El sistema implementa un único endpoint dinámico combinable mediante **`POST /clientes/consultar`** (recibiendo los filtros en el cuerpo JSON, sin path variables ni query params):
 
-1. **`GET /clientes` (Listado general paginado):**
-   - Clic en **Try it out** y luego **Execute** directamente (sin llenar nada).
-   - **Resultado:** Código `200 OK` con la página de clientes registrados.
-2. **`GET /clientes/{id}` (Consulta por ID):**
-   - Clic en **Try it out**, escribe `1` en `id` y clic en **Execute**.
+1. **Listado general de clientes (sin filtros):**
+   - En **`POST /clientes/consultar`**, envía cuerpo vacío `{}` y clic en **Execute**.
+   - **Resultado:** Código `200 OK` paginado con todos los clientes.
+2. **Consulta por ID:**
+   - Envía: `{"id": 1}`.
    - **Resultado:** Código `200 OK` con los datos de Carlos López.
-3. **`GET /clientes/curp/{curp}` (Consulta por CURP):**
-   - Clic en **Try it out**, escribe `LOGC940820HDFRRN01` y clic en **Execute**.
+3. **Consulta por CURP (B-Tree indexado):**
+   - Envía: `{"curp": "LOGC940820HDFRRN01"}`.
    - **Resultado:** Código `200 OK` encontrando al cliente en milisegundos gracias al índice B-Tree.
-4. **`GET /clientes/rfc/{rfc}` (Consulta por RFC):**
-   - Clic en **Try it out**, escribe `LOGC9408201A2` y clic en **Execute**.
+4. **Consulta por RFC:**
+   - Envía: `{"rfc": "LOGC9408201A2"}`.
    - **Resultado:** Código `200 OK`.
-5. **`GET /clientes/buscar` (Búsqueda por nombre o apellido):**
-   - Clic en **Try it out**, en el campo `nombre` escribe `carlos` y clic en **Execute**.
-   - **Resultado:** Código `200 OK` devolviendo los clientes que coincidan.
-6. **`GET /clientes/activos` (Listado de activos):**
-   - Clic en **Try it out** y clic en **Execute**.
+5. **Búsqueda por coincidencia de nombre o apellido:**
+   - Envía: `{"nombre": "carlos"}`.
+   - **Resultado:** Código `200 OK` devolviendo coincidencias parciales con `LIKE %carlos%`.
+6. **Búsqueda por número de cuenta bancaria:**
+   - Envía: `{"numeroCuenta": "4152..."}` (pega el número de cuenta generado en el paso 1).
+   - **Resultado:** Código `200 OK` uniendo el cliente con su cuenta mediante JPA Criteria Join.
+7. **Filtrado por estatus activo y paginación:**
+   - Envía: `{"activo": true, "pagina": 0, "tamanoPagina": 10, "ordenarPor": "id", "direccionOrden": "ASC"}`.
    - **Resultado:** Código `200 OK`.
 
 ---
 
 ### 🟢 PASO 4: Operaciones y Consultas de Cuentas Bancarias
 
-1. **`GET /cuentas/{numeroCuenta}` (Consulta por número de cuenta):**
-   - Pega el número de 16 dígitos que se generó en el Paso 1 (ej. `4152...`).
-   - Clic en **Execute**.
-   - **Resultado:** Código `200 OK` con el saldo y estatus `ACTIVA`.
-2. **`GET /cuentas/{numeroCuenta}/saldo` (Consulta rápida de saldo):**
-   - Pega el número de cuenta y clic en **Execute**.
-   - **Resultado:** Código `200 OK` con `{"numeroCuenta": "...", "saldo": 2500.00}`.
-3. **`POST /cuentas` (Crear una segunda cuenta para el cliente):**
-   - Clic en **Try it out** y pega:
+1. **Consulta dinámica de cuenta y saldo:**
+   - Ve a **`POST /cuentas/consultar`** y envía:
+     ```json
+     {
+       "numeroCuenta": "4152849102938475"
+     }
+     ```
+   - **Resultado:** Código `200 OK` con el detalle de la cuenta, saldo y estatus `ACTIVA`.
+2. **Crear una segunda cuenta para el cliente:**
+   - Ve a **`POST /cuentas`** y envía:
      ```json
      {
        "clienteId": 1,
        "saldoInicial": 500.00
      }
      ```
-   - Clic en **Execute**.
    - **Resultado:** Código `201 Created` con una segunda cuenta bancaria independiente.
-4. **`GET /cuentas/cliente/{clienteId}` (Listar cuentas del cliente):**
-   - Pon `1` en `clienteId` y clic en **Execute**.
-   - **Resultado:** Código `200 OK` mostrando las dos cuentas asociadas a Carlos.
-5. **`PATCH /cuentas/{numeroCuenta}/estatus` (Bloquear una cuenta):**
-   - Pega el número de cuenta y en el JSON escribe:
+3. **Listar todas las cuentas del cliente:**
+   - En **`POST /cuentas/consultar`**, envía:
      ```json
      {
+       "clienteId": 1
+     }
+     ```
+   - **Resultado:** Código `200 OK` mostrando las dos cuentas asociadas a Carlos.
+4. **Actualizar estatus operativo de una cuenta (Bloqueo):**
+   - Ve a **`PATCH /cuentas/estatus`** y envía:
+     ```json
+     {
+       "numeroCuenta": "4152849102938475",
        "estatus": "BLOQUEADA"
      }
      ```
-   - Clic en **Execute**.
    - **Resultado:** Código `200 OK` con `estatus: "BLOQUEADA"` y `activo: false`.
 
 ---
 
 ### 🟢 PASO 5: Consultas de Usuarios
 
-1. **`GET /usuarios` (Listado paginado de usuarios):**
-   - Clic en **Try it out** y **Execute**.
+1. **Listado paginado de usuarios:**
+   - Ve a **`POST /usuarios/consultar`** y envía `{}`.
    - **Resultado:** Código `200 OK` listando los usuarios registrados (con su ID y correo, sin exponer el password).
-2. **`GET /usuarios/filtro` (Filtro por estado o correo):**
-   - En `correo` escribe `carlos` y clic en **Execute**.
-   - **Resultado:** Código `200 OK` con la coincidencia.
+2. **Filtro por correo o clienteId:**
+   - Envía: `{"correo": "carlos"}` o `{"clienteId": 1}`.
+   - **Resultado:** Código `200 OK` con la coincidencia correspondiente.
 
 ---
 
 ### 🟢 PASO 6: Actualización Parcial de Cliente (`PATCH`)
-Regla del banco: Se pueden actualizar datos personales y domicilio, pero **está estrictamente prohibido alterar la CURP y el RFC**.
+Regla del banco: Se pueden actualizar datos personales y domicilio, pero **está estrictamente prohibido alterar la CURP y el RFC**. El ID del cliente se envía en el cuerpo JSON:
 
-1. Ve a **`PATCH /clientes/{id}`**.
-2. En `id` pon `1`.
-3. Pega este JSON para cambiar el teléfono y la empresa:
+1. Ve a **`PATCH /clientes`**.
+2. Pega este JSON para cambiar el teléfono y la empresa:
 ```json
 {
+  "id": 1,
   "telefonoMovil": "5599887766",
   "empresa": "Google Cloud Partner",
   "ingresoMensual": 45000.00
 }
 ```
-4. Clic en **Execute**.
-5. **Resultado esperado (HTTP 200 OK):**
+3. Clic en **Execute**.
+4. **Resultado esperado (HTTP 200 OK):**
    - Verás el teléfono actualizado a `5599887766` y el ingreso a `45000.00`.
-   - La CURP (`LOGC940820HDFRRN01`) y el RFC permanecen exactamente intactos.
+   - La CURP (`LOGC940820HDFRRN01`) y el RFC permanecen exactamente intactos por inmutabilidad de identidad.
 
 ---
 
 ### 🟢 PASO 7: Baja Lógica en Cascada (`DELETE`)
-Regla financiera: **Nunca se borra físicamente (`DELETE FROM`) la información contable**. Se desactiva el cliente y en cascada se desactivan sus cuentas y su usuario.
+Regla financiera: **Nunca se borra físicamente (`DELETE FROM`) la información contable**. Se desactiva el cliente y en cascada se desactivan sus cuentas y su usuario. El ID se recibe en el cuerpo JSON:
 
-1. Ve a **`DELETE /clientes/{id}`**.
-2. En `id` pon `1` y clic en **Execute**.
-3. **Resultado esperado:** Código **`204 No Content`** (operación exitosa sin cuerpo).
-4. **Comprobación de la Cascada:**
-   - Ve a **`GET /clientes/1`**: Verás `"activo": false`.
-   - Ve a **`GET /cuentas/cliente/1`**: Verás que todas sus cuentas cambiaron a `"estatus": "INACTIVA"` y `"activo": false`.
+1. Ve a **`DELETE /clientes`**.
+2. Envía en el Request Body:
+```json
+{
+  "id": 1
+}
+```
+3. Clic en **Execute**.
+4. **Resultado esperado:** Código **`204 No Content`** (operación exitosa sin cuerpo).
+5. **Comprobación de la Cascada:**
+   - Ve a **`POST /clientes/consultar`** con `{"id": 1}`: Verás `"activo": false`.
+   - Ve a **`POST /cuentas/consultar`** con `{"clienteId": 1}`: Verás que todas sus cuentas cambiaron a `"estatus": "INACTIVA"` y `"activo": false`.
    - Ve a **`POST /auth/login`** e intenta iniciar sesión con las credenciales de Carlos:
      **Resultado:** Código **`401 Unauthorized`** con el mensaje `"Credenciales inválidas o usuario inactivo."`. ¡El usuario quedó inhabilitado automáticamente!
 

@@ -39,6 +39,7 @@ public class ClienteSpecification {
 
             if (filtro.getNumeroCuenta() != null && !filtro.getNumeroCuenta().isBlank()) {
                 Join<Cliente, Cuenta> joinCuentas = root.join("cuentas", JoinType.INNER);
+                query.distinct(true);
                 predicates.add(cb.equal(joinCuentas.get("numeroCuenta"), filtro.getNumeroCuenta().trim()));
             }
 
