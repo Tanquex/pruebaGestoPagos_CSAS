@@ -15,6 +15,11 @@ import lombok.NoArgsConstructor;
 @Schema(description = "Solicitud para actualizar el estatus de una cuenta bancaria")
 public class ActualizaCuentaRequest {
 
+    @NotBlank(message = "El número de cuenta es obligatorio")
+    @Pattern(regexp = "^\\d{16}$", message = "El número de cuenta debe contener exactamente 16 dígitos numéricos")
+    @Schema(description = "Número de cuenta bancaria de 16 dígitos", example = "4152849102938475")
+    private String numeroCuenta;
+
     @NotBlank(message = "El estatus de la cuenta es obligatorio")
     @Pattern(regexp = "^(?i)(ACTIVA|INACTIVA|BLOQUEADA|CANCELADA)$", message = "El estatus debe ser ACTIVA, INACTIVA, BLOQUEADA o CANCELADA")
     @Schema(example = "BLOQUEADA")

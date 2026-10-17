@@ -1,12 +1,67 @@
 package com.proyecto.servicios.service;
 
+import com.proyecto.servicios.entity.sf.Personas;
 import com.proyecto.servicios.model.EliminaPersonaRequest;
 import com.proyecto.servicios.model.GenericResponse;
 import com.proyecto.servicios.model.PersonaResponse;
 import com.proyecto.servicios.model.PersonasRequest;
+import com.proyecto.servicios.repositorys.sf.PersonasRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
-public interface PersonaService {
-    PersonaResponse creaPersona(PersonasRequest personasRequest);
-    GenericResponse eliminaPersona(EliminaPersonaRequest eliminaPersonaRequest);
-    GenericResponse actualizaPersona(PersonasRequest personasRequest);
+import java.util.Optional;
+
+@Service
+@Slf4j
+public class PersonaService {
+
+    @Autowired
+    private PersonasRepository personasRepository;
+
+    public PersonaResponse creaPersona(PersonasRequest personasRequest) {
+        PersonaResponse person = new PersonaResponse();
+        Personas persona = new Personas();
+        persona.setNombre(personasRequest.getNombre());
+        persona.setApellidoMaterno(personasRequest.getApellidoMaterno());
+        persona.setApellidoP(personasRequest.getApellidoP());
+        personasRepository.save(persona);
+        person.setCodigo(1);
+        person.setMensaje("Exito");
+        BeanUtils.copyProperties(persona, person);
+        return person;
+    }
+
+    public GenericResponse eliminaPersona(EliminaPersonaRequest eliminaPersonaRequest) {
+        GenericResponse genericResponse = new GenericResponse();
+        Optional<Personas> existePersona = personasRepository.findByNombre(eliminaPersonaRequest.getNombre());
+        if (existePersona.isPresent()) {
+            Personas personaElimina = existePersona.get();
+            personasRepository.delete(personaElimina);
+            genericResponse.setCodigo(0);
+            genericResponse.setMensaje("La persona ha sido eliminada correctamente");
+        } else {
+            genericResponse.setCodigo(1);
+            genericResponse.setMensaje("La persona no existe ");
+        }
+        return genericResponse;
+    }
+
+    public GenericResponse actualizaPersona(PersonasRequest personasRequest) {
+        GenericResponse genericResponse = new GenericResponse();
+        Optional<Personas> existePersona = personasRepository.findByNombre(personasRequest.getNombre());
+        if (existePersona.isPresent()) {
+            Personas persona = existePersona.get();
+            persona.setApellidoMaterno(personasRequest.getApellidoMaterno());
+            persona.setApellidoP(personasRequest.getApellidoP());
+            personasRepository.save(persona);
+            genericResponse.setCodigo(0);
+            genericResponse.setMensaje("Actualizado correctamente");
+        } else {
+            genericResponse.setCodigo(1);
+            genericResponse.setMensaje("Persona no existe");
+        }
+        return genericResponse;
+    }
 }
