@@ -55,6 +55,7 @@ erDiagram
     DOMICILIOS ||--|| CLIENTES : "reside en (1:1)"
     CLIENTES ||--o{ CUENTAS : "posee (1:N)"
     CLIENTES ||--|| USUARIOS : "autentica con (1:1)"
+    CUENTAS ||--o{ TRANSACCIONES_SERVICIO : "ejecuta (1:N)"
     GESTOPAGO_TOKENS {
         bigserial id PK
         int id_distribuidor
@@ -62,6 +63,23 @@ erDiagram
         text token
         timestamp fecha_creacion
         timestamp fecha_expiracion
+    }
+
+    TRANSACCIONES_SERVICIO {
+        bigserial id PK
+        bigint cuenta_id FK
+        varchar_64 random_string "UK - Idempotencia"
+        int id_servicio
+        int id_producto
+        numeric_15_2 precio
+        varchar_100 telefono_referencia
+        varchar_30 bandera
+        varchar_30 estatus "EXITOSA | RECHAZADA | EN_REVISION"
+        varchar_20 codigo_respuesta_proveedor
+        text payload_firmado_aes
+        varchar_100 folio_proveedor
+        varchar_100 autorizacion_proveedor
+        timestamp fecha_creacion "Index B-Tree"
     }
 
     DOMICILIOS {
@@ -308,20 +326,22 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_activo ON usuarios(activo);
 ## 🧪 5. Evidencias de Pruebas (Test Evidence)
 
 ### 4.1. Ejecución de Pruebas Unitarias Automatizadas (Gradle / Mockito)
-Se cuenta con **5 suites de pruebas unitarias al 100% de éxito**, cubriendo los servicios de clientes, cuentas, autenticación, integración y parsing XML:
+Se cuenta con **7 suites de pruebas unitarias al 100% de éxito**, cubriendo los servicios de clientes, cuentas, autenticación, integración, transacciones GestoPago, cifrado AES y parsing XML:
 
 ```text
 > Task :test
-BUILD SUCCESSFUL in 32s
-5 actionable tasks: 3 executed, 2 up-to-date
+BUILD SUCCESSFUL in 29s
+5 actionable tasks: 5 executed
 ```
 
 | Suite de Pruebas | Clase | Estado | Pruebas Clave Cubiertas |
 |---|---|:---:|---|
-| **Clientes** | [`ClienteServiceImplTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/ClienteServiceImplTest.java) | ✅ APROBADO | Onboarding completo, rechazo de menor de edad, unicidad de CURP/RFC/Correo, inmutabilidad y baja lógica en cascada. |
-| **Cuentas** | [`CuentaServiceImplTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/CuentaServiceImplTest.java) | ✅ APROBADO | Creación de cuenta adicional, consulta de saldo, rechazo para cliente inactivo, bloqueo de cuentas. |
-| **Autenticación** | [`AuthServiceImplTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/AuthServiceImplTest.java) | ✅ APROBADO | Login exitoso con emisión JWT, contraseña errónea rechazada, usuario inactivo rechazado. |
-| **Catálogo** | [`CatalogoProductoServiceImplTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/CatalogoProductoServiceImplTest.java) | ✅ APROBADO | Sincronización de productos Feign, manejo de timeouts y persistencia Mongo. |
+| **Clientes** | [`ClienteServiceTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/ClienteServiceTest.java) | ✅ APROBADO | Onboarding completo, rechazo de menor de edad, unicidad de CURP/RFC/Correo, inmutabilidad y baja lógica en cascada. |
+| **Cuentas** | [`CuentaServiceTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/CuentaServiceTest.java) | ✅ APROBADO | Creación de cuenta adicional, consulta de saldo, rechazo para cliente inactivo, bloqueo de cuentas. |
+| **Autenticación** | [`AuthServiceTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/AuthServiceTest.java) | ✅ APROBADO | Login exitoso con emisión JWT, contraseña errónea rechazada, usuario inactivo rechazado. |
+| **Catálogo** | [`CatalogoProductoServiceTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/CatalogoProductoServiceTest.java) | ✅ APROBADO | Sincronización de productos Feign, manejo de timeouts y persistencia Mongo. |
+| **Pagos GestoPago** | [`PagoServicioServiceTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/service/PagoServicioServiceTest.java) | ✅ APROBADO | Cobro condicionado al código 01, retención de saldo sin cobro ante rechazo, PIN seguro, verificación de catálogo y manejo de timeout (EN_REVISION). |
+| **Cifrado AES** | [`AesEncryptionUtilTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/util/AesEncryptionUtilTest.java) | ✅ APROBADO | Cifrado y descifrado AES en Base64, padding y resiliencia de claves. |
 | **Utilerías XML** | [`JaxbXmlParserTest`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/test/java/com/proyecto/servicios/util/JaxbXmlParserTest.java) | ✅ APROBADO | Deserialización JAXB de payloads XML de GestoPago. |
 
 ---
@@ -506,6 +526,9 @@ Todos los criterios de búsqueda, parámetros e identificadores se reciben exclu
 | **Usuarios** | `POST` | `/usuarios/consultar` | `UsuarioConsultaRequest` | **Único endpoint de consulta dinámica de usuarios** (ID, ClienteId, Correo, Activo) | `200 OK` |
 | **Catálogo** | `POST` | `/api/v1/catalogo/productos/consultar` | `ProductoConsultaRequest` | Consulta dinámica de catálogo NoSQL en MongoDB (ID producto, ID servicio o búsqueda) | `200 OK` |
 | **Catálogo** | `POST` | `/api/v1/catalogo/sincronizar` | N/A | Sincronización XML GestoPago a MongoDB | `200 OK` |
+| **Pagos GestoPago** | `POST` | `/pagos/transaccion` | `PagoServicioRequest` | **Procesar pago de servicio o tiempo aire** (`sendTx.do`): Valida PIN, cuenta activa, catálogo, firma AES y **descuenta saldo SOLO si el código es 01** | `200 OK` |
+| **Pagos GestoPago** | `POST` | `/pagos/consultar` | `TransaccionConsultaRequest` | **Único endpoint de consulta dinámica y conciliación** de transacciones (ID, cuenta, randomString, estatus, fechas) | `200 OK` |
+
 
 ---
 

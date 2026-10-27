@@ -91,13 +91,60 @@ spring.data.mongodb.uri=${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/gest
 
 ---
 
-## 6. Pruebas Unitarias Implementadas
+* **`PagoServicioServiceTest`**:
+  * Descuento de saldo atómico condicionado estrictamente al código `01`.
+  * Verificación de que ante rechazo (`02`, `99`) **NO se descuenta saldo**.
+  * Validación de PIN seguro y coincidencia con catálogo MongoDB.
+  * Manejo de timeout de red marcando la transacción en `EN_REVISION` sin descuento indebido.
+* **`AesEncryptionUtilTest`**:
+  * Cifrado y descifrado de payloads en Base64 con AES/ECB/PKCS5Padding.
 
-* **`JaxbXmlParserTest`**:
-  * Deserialización exitosa de XML complejo de GestoPago (atributos, etiquetas anidadas y CDATA).
-  * Validación de lanzamiento de excepción ante XML vacío o malformado.
-* **`CatalogoProductoServiceImplTest`**:
-  * Sincronización exitosa simulando Feign Client, JAXB y persistencia en MongoDB.
-  * Manejo adecuado de escenarios de error por timeout de red (`504 Gateway Timeout`).
-  * Validación ante ausencia de token activo.
-  * Consultas filtradas por servicio y término de búsqueda.
+---
+
+## 7. Integración de Transacciones Financieras (`POST /sistema/service/sendTx.do`)
+
+### 7.1. Flujo de Operación (Regla del Pizarrón del Docente)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as PagoServicioController
+    participant Service as PagoServicioService
+    participant BD as PostgreSQL (Cuentas)
+    participant Mongo as MongoDB (Catálogo)
+    participant AES as AesEncryptionUtil
+    participant GestoPago as GestoPago (sendTx.do)
+
+    Cliente->>Controller: POST /pagos/transaccion (Request Body)
+    Controller->>Service: procesarPagoServicio(request)
+    Service->>BD: Validar Cuenta Activa y Pass Seguro (BCrypt)
+    Service->>BD: Validar Saldo Preliminar (Saldo >= Precio)
+    Service->>Mongo: Validar existencia de idProducto/idServicio y Precio
+    Service->>AES: Cifrar y Firmar Payload con AES (Base64)
+    Service->>BD: Obtener Bearer Token de gestopago_tokens
+    Service->>BD: Registrar transacción en estado PENDIENTE
+    Service->>GestoPago: POST /sistema/service/sendTx.do (Bearer Token + Payload)
+    alt GestoPago responde Código 01 (Éxito)
+        GestoPago-->>Service: <RESPONSE><CODIGO>01</CODIGO>...</RESPONSE>
+        Service->>BD: DESCONTAR SALDO ATÓMICO (saldo = saldo - precio)
+        Service->>BD: Actualizar transacción a EXITOSA
+        Service-->>Cliente: HTTP 200 OK (Pago exitoso, saldo actualizado)
+    else GestoPago responde Código != 01 (Rechazo)
+        GestoPago-->>Service: <RESPONSE><CODIGO>02</CODIGO>...</RESPONSE>
+        Service->>BD: NO DESCONTAR SALDO (saldo intacto)
+        Service->>BD: Actualizar transacción a RECHAZADA
+        Service-->>Cliente: HTTP 200 OK / 502 (Transacción rechazada sin cobro)
+    else Timeout de Red (Excepción)
+        Service->>BD: NO DESCONTAR SALDO
+        Service->>BD: Actualizar transacción a EN_REVISION (Conciliación)
+        Service-->>Cliente: HTTP 504 Gateway Timeout (Pendiente de conciliación)
+    end
+```
+
+### 7.2. Medidas de Seguridad Implementadas:
+1. **Pass Seguro / PIN:** Validación obligatoria de la credencial con BCrypt antes de contactar a GestoPago.
+2. **Cifrado AES:** El payload saliente se firma y cifra mediante algoritmo AES con clave secreta configurada en el entorno.
+3. **Cero Path Variables y Cero Request Param:** Todos los parámetros se reciben en el cuerpo JSON (`@RequestBody`) con validación Bean Validation.
+4. **Enmascaramiento de Datos Sensibles:** Los números de cuenta (`4152********8475`) y teléfonos/referencias (`55****78`) se enmascaran en las respuestas y en los logs.
+

@@ -122,12 +122,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(GestoPagoIntegrationException.class)
     public ResponseEntity<ErrorResponseDto> handleIntegrationException(GestoPagoIntegrationException ex) {
         log.error("Excepción en integración externa GestoPago: {}", ex.getMessage());
+        HttpStatus status = (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("tiempo de espera"))
+                ? HttpStatus.GATEWAY_TIMEOUT
+                : HttpStatus.BAD_GATEWAY;
+
         ErrorResponseDto response = ErrorResponseDto.builder()
-                .codigo(HttpStatus.BAD_GATEWAY.value())
+                .codigo(status.value())
                 .mensaje(ex.getMessage())
                 .timestamp(LocalDateTime.now())
                 .build();
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

@@ -12,6 +12,8 @@ public interface ProductoMongoRepository extends MongoRepository<ProductoDocumen
 
     Optional<ProductoDocument> findByIdProducto(Integer idProducto);
 
+    Optional<ProductoDocument> findByIdProductoAndIdServicio(Integer idProducto, Integer idServicio);
+
     List<ProductoDocument> findByIdServicio(Integer idServicio);
 
     List<ProductoDocument> findByTipoFront(Integer tipoFront);
