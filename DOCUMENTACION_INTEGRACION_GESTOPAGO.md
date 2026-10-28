@@ -148,3 +148,20 @@ sequenceDiagram
 3. **Cero Path Variables y Cero Request Param:** Todos los parámetros se reciben en el cuerpo JSON (`@RequestBody`) con validación Bean Validation.
 4. **Enmascaramiento de Datos Sensibles:** Los números de cuenta (`4152********8475`) y teléfonos/referencias (`55****78`) se enmascaran en las respuestas y en los logs.
 
+### 7.3. Decisiones de robustez (consistencia, concurrencia y conciliación)
+1. **Tres pasos, cada uno en su propia transacción:** (1) *preparar*: bloquea la cuenta (`PESSIMISTIC_WRITE`), valida y registra `PENDIENTE`; (2) *enviar* a `sendTx.do` **sin transacción abierta**, para no retener conexiones de BD durante la llamada HTTP y para que un fallo del proveedor no revierta el registro; (3) *liquidar*: solo con código `01` se descuenta el saldo.
+2. **Saldo comprometido:** como el saldo se descuenta hasta confirmar `01`, el saldo disponible se calcula como `saldo - Σ(montos PENDIENTE o EN_REVISION)`. Así dos pagos simultáneos, o un pago incierto, no pueden gastar el mismo dinero.
+3. **Descuento atómico:** `UPDATE cuentas SET saldo = saldo - :monto WHERE saldo >= :monto`, con limpieza del contexto de persistencia para no pisar el saldo con un valor en memoria.
+4. **Idempotencia:** `randomString` es **obligatorio** y lo genera el cliente por operación. Reintentar con el mismo valor devuelve `409 Conflict` y nunca duplica el cargo (índice único en BD).
+5. **Un timeout no significa "no se procesó":** timeout, error 5xx o respuesta ilegible dejan la transacción `EN_REVISION` (sin descuento), se responde `504` y se consulta/concilia con `POST /pagos/consultar` (`estatus = EN_REVISION`). Solo un 4xx o un código distinto de `01` explícito se tratan como `RECHAZADA`.
+6. **Proveedor confirma `01` pero ya no hay saldo:** la transacción queda `EN_REVISION` con los datos del proveedor para conciliación manual.
+
+### 7.4. Configuración obligatoria (no hay claves en el repositorio)
+| Variable de entorno | Uso |
+|---|---|
+| `GESTOPAGO_AES_KEY` | Clave AES para firmar el payload. Sin ella el pago falla con error claro; no existe clave por defecto. |
+| `GESTOPAGO_PASSWORD` | Credencial para renovar el token Bearer. |
+
+> **Supuestos pendientes de confirmar con el profesor/proveedor:** el formato exacto del payload y de la respuesta de `sendTx.do`, el origen del campo `upc` (hoy se envía el `idProducto`) y el modo AES (hoy `AES/ECB/PKCS5Padding`).
+
+

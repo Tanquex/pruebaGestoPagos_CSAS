@@ -48,8 +48,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
-    @ExceptionHandler(ClienteYaExisteException.class)
-    public ResponseEntity<ErrorResponseDto> handleClienteYaExiste(ClienteYaExisteException ex) {
+    @ExceptionHandler({ClienteYaExisteException.class, TransaccionDuplicadaException.class})
+    public ResponseEntity<ErrorResponseDto> handleClienteYaExiste(RuntimeException ex) {
         log.warn("Conflicto de cliente existente: {}", ex.getMessage());
         ErrorResponseDto response = ErrorResponseDto.builder()
                 .codigo(HttpStatus.CONFLICT.value())
@@ -119,19 +119,26 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
     }
 
-    @ExceptionHandler(GestoPagoIntegrationException.class)
-    public ResponseEntity<ErrorResponseDto> handleIntegrationException(GestoPagoIntegrationException ex) {
-        log.error("Excepción en integración externa GestoPago: {}", ex.getMessage());
-        HttpStatus status = (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("tiempo de espera"))
-                ? HttpStatus.GATEWAY_TIMEOUT
-                : HttpStatus.BAD_GATEWAY;
-
+    @ExceptionHandler(GestoPagoResultadoInciertoException.class)
+    public ResponseEntity<ErrorResponseDto> handleResultadoIncierto(GestoPagoResultadoInciertoException ex) {
+        log.error("Resultado incierto en integración con GestoPago: {}", ex.getMessage());
         ErrorResponseDto response = ErrorResponseDto.builder()
-                .codigo(status.value())
+                .codigo(HttpStatus.GATEWAY_TIMEOUT.value())
                 .mensaje(ex.getMessage())
                 .timestamp(LocalDateTime.now())
                 .build();
-        return ResponseEntity.status(status).body(response);
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(response);
+    }
+
+    @ExceptionHandler(GestoPagoIntegrationException.class)
+    public ResponseEntity<ErrorResponseDto> handleIntegrationException(GestoPagoIntegrationException ex) {
+        log.error("Excepción en integración externa GestoPago: {}", ex.getMessage());
+        ErrorResponseDto response = ErrorResponseDto.builder()
+                .codigo(HttpStatus.BAD_GATEWAY.value())
+                .mensaje(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(response);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
