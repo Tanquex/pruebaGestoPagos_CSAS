@@ -38,4 +38,11 @@ class AesEncryptionUtilTest {
         assertEquals("", aesUtil.descifrar("", secretKey));
         assertEquals("", aesUtil.descifrar(null, secretKey));
     }
+
+    @Test
+    @DisplayName("Sin clave configurada debe fallar en lugar de usar una clave por defecto")
+    void testSinClaveFalla() {
+        assertThrows(IllegalStateException.class, () -> aesUtil.cifrar("dato", ""));
+        assertThrows(IllegalStateException.class, () -> aesUtil.cifrar("dato", null));
+    }
 }

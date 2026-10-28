@@ -25,7 +25,7 @@ public interface CuentaRepository extends JpaRepository<Cuenta, Long>, JpaSpecif
     @org.springframework.data.jpa.repository.Query("SELECT c FROM Cuenta c WHERE c.numeroCuenta = :numeroCuenta")
     Optional<Cuenta> findByNumeroCuentaConBloqueo(@org.springframework.data.repository.query.Param("numeroCuenta") String numeroCuenta);
 
-    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
     @org.springframework.data.jpa.repository.Query("UPDATE Cuenta c SET c.saldo = c.saldo - :monto WHERE c.numeroCuenta = :numeroCuenta AND c.saldo >= :monto")
     int descontarSaldoSiSuficiente(@org.springframework.data.repository.query.Param("numeroCuenta") String numeroCuenta,
                                   @org.springframework.data.repository.query.Param("monto") java.math.BigDecimal monto);
