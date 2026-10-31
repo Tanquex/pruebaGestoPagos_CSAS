@@ -28,6 +28,7 @@ El objetivo es automatizar de forma integral y atómica el **Onboarding de Clien
 7. Actualizaciones parciales con reglas de **inmutabilidad de identidad** (prohibición estricta de alterar CURP, RFC y número de cuenta).
 8. **Baja lógica en cascada (Soft Delete):** Al desactivar un cliente, se inactivan automáticamente todas sus cuentas bancarias y se cancela su acceso de usuario.
 9. Sincronización y consulta del catálogo de más de 900 productos y servicios del proveedor **GestoPago** (vía XML/JAXB hacia MongoDB).
+10. **Procesamiento Transaccional de Pagos de Servicios y Tiempo Aire (`sendTx.do`):** Validación de identidad (PIN con BCrypt), verificación contra catálogo MongoDB, firma de payload con **AES**, control de concurrencia con bloqueo pesimista y **saldo comprometido**, idempotencia obligatoria mediante `randomString`, manejo de incertidumbre/timeouts en estado `EN_REVISION` (`504 Gateway Timeout`) y **descuento atómico de saldo exclusivamente cuando GestoPago confirma con código `01`**.
 
 ---
 
@@ -274,6 +275,38 @@ CREATE INDEX IF NOT EXISTS idx_cuentas_activo ON cuentas(activo);
 CREATE INDEX IF NOT EXISTS idx_usuarios_cliente_id ON usuarios(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_usuarios_correo_lookup ON usuarios(correo);
 CREATE INDEX IF NOT EXISTS idx_usuarios_activo ON usuarios(activo);
+
+-- 6. TABLA DE TRANSACCIONES DE PAGO DE SERVICIOS Y TIEMPO AIRE (GESTOPAGO)
+CREATE TABLE IF NOT EXISTS transacciones_servicio (
+    id                          BIGSERIAL PRIMARY KEY,
+    cuenta_id                   BIGINT         NOT NULL,
+    random_string               VARCHAR(64)    NOT NULL,
+    id_servicio                 INTEGER        NOT NULL,
+    id_producto                 INTEGER        NOT NULL,
+    precio                      NUMERIC(15, 2) NOT NULL,
+    telefono_referencia         VARCHAR(100)   NOT NULL,
+    bandera                     VARCHAR(30)    NOT NULL,
+    distribuidor                VARCHAR(50)    NOT NULL,
+    hora_local                  VARCHAR(30)    NOT NULL,
+    payload_firmado_aes         TEXT           NOT NULL,
+    estatus                     VARCHAR(30)    NOT NULL,
+    codigo_respuesta_proveedor  VARCHAR(20),
+    mensaje_proveedor           VARCHAR(255),
+    folio_proveedor             VARCHAR(100),
+    autorizacion_proveedor      VARCHAR(100),
+    fecha_creacion              TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion         TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_transacciones_cuenta FOREIGN KEY (cuenta_id) REFERENCES cuentas(id) ON DELETE RESTRICT,
+    CONSTRAINT uq_transacciones_random_string UNIQUE (random_string),
+    CONSTRAINT chk_transacciones_precio_positivo CHECK (precio > 0.00)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tx_servicio_cuenta_id ON transacciones_servicio(cuenta_id);
+CREATE INDEX IF NOT EXISTS idx_tx_servicio_random_string ON transacciones_servicio(random_string);
+CREATE INDEX IF NOT EXISTS idx_tx_servicio_estatus ON transacciones_servicio(estatus);
+CREATE INDEX IF NOT EXISTS idx_tx_servicio_fecha_creacion ON transacciones_servicio(fecha_creacion);
+CREATE INDEX IF NOT EXISTS idx_tx_servicio_id_servicio_producto ON transacciones_servicio(id_servicio, id_producto);
 ```
 
 ### 🧠 Mejores Prácticas en Tipos de Datos y Uso Eficiente de Memoria (Criterio 20%):
@@ -320,6 +353,84 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_activo ON usuarios(activo);
 1. **Recepción Atómica:** Si en algún punto del proceso falla la generación de la cuenta o el hashing del usuario, la anotación `@Transactional` revierte la operación por completo (*rollback*), evitando registros huérfanos.
 2. **Generación de Tarjeta/Cuenta:** El utilitario [`GeneradorCuentaUtil.java`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/main/java/com/proyecto/servicios/util/GeneradorCuentaUtil.java) genera un número con prefijo BIN bancario `4152...` y verifica en tiempo real que no colisione con cuentas existentes.
 3. **Paginación Amigable (`@ParameterObject`):** Los controladores implementan `@ParameterObject` para que Swagger interprete `page`, `size` y `sort` de forma limpia y nunca genere errores de tipo `500` por propiedades inexistentes.
+
+---
+
+### 💳 4.1. Arquitectura Transaccional de Pagos GestoPago (`POST /sistema/service/sendTx.do`)
+
+La integración de pagos de servicios y tiempo aire ([`PagoServicioService.java`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/main/java/com/proyecto/servicios/service/PagoServicioService.java)) implementa el flujo diseñado en el pizarrón del docente bajo una **arquitectura en 3 fases transaccionales desacopladas**, garantizando que **el saldo jamás se descuente salvo confirmación explícita con código `01`**, sin retener conexiones de base de datos durante la llamada HTTP externa y preservando la trazabilidad ante timeouts (`EN_REVISION`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cliente
+    participant Controller as PagoServicioController
+    participant Service as PagoServicioService
+    participant BD as PostgreSQL (Cuentas y Transacciones)
+    participant Mongo as MongoDB (Catálogo)
+    participant AES as AesEncryptionUtil
+    participant GestoPago as GestoPago (sendTx.do)
+
+    Cliente->>Controller: POST /pagos/transaccion (@Valid @RequestBody PagoServicioRequest)
+    Controller->>Service: procesarPagoServicio(request)
+
+    rect rgb(235, 245, 255)
+    Note over Service,BD: FASE 1: Preparar y Comprometer (Transacción BD #1)
+    Service->>BD: SELECT ... FOR UPDATE (Bloqueo pesimista de Cuenta)
+    Service->>BD: Verificar idempotencia de randomString (Si existe -> 409 Conflict)
+    Service->>BD: Validar Cuenta ACTIVA, Cliente ACTIVO y PIN/Pass con BCrypt
+    Service->>BD: Calcular Saldo Disponible = Saldo - SUM(PENDIENTE + EN_REVISION)
+    Service->>Mongo: Validar existencia de (idProducto, idServicio) y Precio exacto
+    Service->>AES: Construir Payload JSON y Cifrar/Firmar con AES (GESTOPAGO_AES_KEY)
+    Service->>BD: INSERT transacción en estado PENDIENTE (COMMIT)
+    end
+
+    rect rgb(255, 248, 230)
+    Note over Service,GestoPago: FASE 2: Comunicación Externa (Sin Transacción de BD abierta)
+    Service->>BD: Resolver Bearer Token activo (gestopago_tokens)
+    Service->>GestoPago: POST /sistema/service/sendTx.do (Bearer Token + Payload JSON)
+    end
+
+    rect rgb(235, 255, 240)
+    Note over Service,BD: FASE 3: Liquidación o Conciliación (Transacción BD #2)
+    alt GestoPago responde Código "01" (Éxito confirmado)
+        GestoPago-->>Service: Código "01" + Folio + Autorización
+        Service->>BD: UPDATE cuentas SET saldo = saldo - precio WHERE saldo >= precio
+        Service->>BD: UPDATE transacción a EXITOSA (COMMIT)
+        Service-->>Cliente: HTTP 200 OK (Saldo descontado y datos enmascarados)
+    else GestoPago responde Código != "01" o HTTP 4xx (Rechazo explícito)
+        GestoPago-->>Service: Código != "01" (ej. "02", "99")
+        Service->>BD: NO se descuenta saldo (Saldo intacto)
+        Service->>BD: UPDATE transacción a RECHAZADA (COMMIT)
+        Service-->>Cliente: HTTP 200 OK (Estatus RECHAZADA, sin cargo a la cuenta)
+    else Timeout de Red / Error 5xx / Respuesta Ilegible (Resultado incierto)
+        GestoPago--xService: RetryableException / HTTP 5xx / Payload truncado
+        Service->>BD: NO se descuenta saldo (Monto queda retenido en revisión)
+        Service->>BD: UPDATE transacción a EN_REVISION (COMMIT independiente)
+        Service-->>Cliente: HTTP 504 Gateway Timeout (Sujeta a conciliación)
+    end
+    end
+```
+
+#### 🛡️ Justificación Técnica de las Decisiones de Diseño y Mitigación de Riesgos:
+
+1. **¿Por qué dividir la operación en 3 transacciones en lugar de un único `@Transactional`?**
+   - **Problema evitado:** Si todo el método tuviera un único `@Transactional` y la llamada a GestoPago sufriera un *Timeout*, Spring lanzaría una `RuntimeException` y ejecutaría un *rollback* completo de la base de datos, **borrando el registro `EN_REVISION`** e impidiendo saber si el proveedor procesó el cargo. Además, mantener una transacción abierta durante una llamada HTTP externa agota el pool de conexiones (`HikariCP`).
+   - **Solución implementada:** Se utiliza `TransactionTemplate` en 3 pasos cortos: (1) guardar la intención como `PENDIENTE` y hacer commit; (2) invocar a `sendTx.do` fuera de la transacción de BD; y (3) abrir una segunda transacción breve para liquidar (`EXITOSA`, `RECHAZADA` o `EN_REVISION`).
+2. **Estrategia de Cobro en Código `01` y Control de Concurrencia (Saldo Comprometido):**
+   - Cumpliendo la regla de negocio del pizarrón, el saldo de la cuenta **solo se descuenta cuando GestoPago devuelve el código `"01"`**.
+   - Para impedir que un cliente con $\$100$ lance dos peticiones simultáneas de $\$100$ antes de que regrese el `"01"`, la Fase 1 aplica un **bloqueo pesimista (`LockModeType.PESSIMISTIC_WRITE`)** sobre la fila de la cuenta y calcula el **saldo disponible real**:
+     $$\text{Saldo Disponible} = \text{Saldo Actual} - \sum \text{Montos en } (\text{PENDIENTE}, \text{EN\_REVISION})$$
+   - Al confirmar el `"01"`, el descuento se ejecuta con una sentencia SQL atómica (`UPDATE cuentas SET saldo = saldo - :monto WHERE numero_cuenta = :num AND saldo >= :monto`) con `clearAutomatically = true`.
+3. **Prevención de Cargos Duplicados (Idempotencia Estricta con `randomString`):**
+   - El cliente envía obligatoriamente el identificador `randomString` en el cuerpo de la petición (`PagoServicioRequest`).
+   - La columna `random_string` posee una restricción `UNIQUE` en PostgreSQL (`uq_transacciones_random_string`). Si se recibe una solicitud duplicada por reintento de red, se rechaza inmediatamente con **`HTTP 409 Conflict`** (`TransaccionDuplicadaException`) antes de tocar el saldo o llamar al proveedor.
+4. **Conciliación ante Incertidumbre (Un Timeout nunca se asume como "no procesado"):**
+   - Ante un `RetryableException` (timeout), un error `5xx` del servidor externo o una respuesta corrupta/ilegible, el sistema **jamás asume que la operación falló ni la reintenta a ciegas**. La transacción se persiste con estatus `EN_REVISION`, comprometiendo el monto para evitar sobregiros, y devuelve **`HTTP 504 Gateway Timeout`** (`GestoPagoResultadoInciertoException`). Estas operaciones pueden auditarse y conciliarse mediante el endpoint `POST /pagos/consultar` filtrando por `"estatus": "EN_REVISION"`.
+5. **Seguridad de Credenciales, Firma AES y Protección de Datos Sensibles:**
+   - **Cero secretos en código:** La clave de cifrado AES (`GESTOPAGO_AES_KEY`) y las credenciales del proveedor se inyectan por variables de entorno; no existen claves AES por defecto en el repositorio.
+   - **Doble validación criptográfica:** Se verifica el PIN/contraseña del cliente contra su hash **BCrypt** antes de operar, y el payload saliente se cifra con `AES/ECB/PKCS5Padding` en Base64 ([`AesEncryptionUtil.java`](file:///c:/Users/SAMAEL/Downloads/prueba/prueba/src/main/java/com/proyecto/servicios/util/AesEncryptionUtil.java)).
+   - **Enmascaramiento en Logs y Respuestas HTTP:** Los números de cuenta se enmascaran como `4152********8475` y los teléfonos/referencias como `55****78`, evitando fugas de información sensible (PII).
 
 ---
 
@@ -508,6 +619,65 @@ BUILD SUCCESSFUL in 29s
 
 ---
 
+#### Caso 9: Pago de Servicio / Tiempo Aire GestoPago (`sendTx.do`) con Firma AES y Cobro en Código `01`
+- **Endpoint:** `POST /pagos/transaccion`
+- **Request Payload:**
+```json
+{
+  "numCuenta": "4152849102938475",
+  "idServicio": 1,
+  "idProducto": 101,
+  "precio": 100.00,
+  "telefonoReferencia": "5512345678",
+  "bandera": "SIN_REFERENCIA",
+  "pin": "PasswordSeguro123",
+  "randomString": "A1B2C3D4E5F6"
+}
+```
+- **Resultado (Código `01` de GestoPago):** **`HTTP 200 OK`** (Se descuenta $\$100.00$ del saldo y se enmascaran los datos sensibles)
+```json
+{
+  "idTransaccion": 1,
+  "randomString": "A1B2C3D4E5F6",
+  "numCuenta": "4152********8475",
+  "idServicio": 1,
+  "idProducto": 101,
+  "nombreServicio": "Tiempo Aire",
+  "nombreProducto": "Recarga Telcel $100",
+  "precio": 100.00,
+  "saldoRestante": 2400.00,
+  "telefonoReferencia": "55******78",
+  "bandera": "SIN_REFERENCIA",
+  "estatus": "EXITOSA",
+  "codigoProveedor": "01",
+  "mensajeProveedor": "Operacion realizada con exito",
+  "folioProveedor": "987654321",
+  "autorizacionProveedor": "AUTH-001",
+  "fechaTransaccion": "2026-10-30T18:30:00"
+}
+```
+- **Escenarios de Protección Validados:**
+  - **Reintento duplicado (mismo `randomString`):** Responde **`HTTP 409 Conflict`** sin procesar ni cobrar dos veces.
+  - **Código distinto de `01` (Rechazo):** La transacción queda `RECHAZADA` y el `saldoRestante` permanece intacto ($\$2500.00$).
+  - **Timeout o Error `5xx` de GestoPago:** La transacción queda persistida en `EN_REVISION` (sin descontar saldo) y responde **`HTTP 504 Gateway Timeout`** para conciliación.
+
+---
+
+#### Caso 10: Consulta Dinámica y Conciliación de Transacciones (`POST /pagos/consultar`)
+- **Endpoint:** `POST /pagos/consultar`
+- **Request Payload (para auditar operaciones en revisión):**
+```json
+{
+  "numCuenta": "4152849102938475",
+  "estatus": "EN_REVISION",
+  "page": 0,
+  "size": 10
+}
+```
+- **Resultado:** **`HTTP 200 OK`** (Listado paginado con datos enmascarados para conciliación).
+
+---
+
 ## 📡 6. Matriz de Endpoints REST Disponibles (100% Sin @PathVariable ni @RequestParam)
 
 Todos los criterios de búsqueda, parámetros e identificadores se reciben exclusivamente mediante objetos **Request DTO** anotados con **`@Valid @RequestBody`**, cumpliendo estrictamente con las restricciones obligatorias del docente:
@@ -565,3 +735,19 @@ Si deseas ejecutar la aplicación en tu entorno local:
    ```
 4. **Abrir Swagger UI localmente:**
    👉 `http://localhost:8081/swagger-ui.html`
+
+### 🔐 8.1. Variables de Entorno (Render Cloud / Producción)
+
+Para el despliegue en **Render** (o ejecución local), estas son las variables de entorno requeridas:
+
+| Variable de Entorno | Requerida | Valor por Defecto Local | Descripción |
+|---|:---:|---|---|
+| `SPRING_DATASOURCE_URL` | ✅ Sí (en Render) | `jdbc:postgresql://localhost:5432/gestopago_db` | URL JDBC de la base de datos PostgreSQL 16 |
+| `SPRING_DATASOURCE_USERNAME` | ✅ Sí (en Render) | `postgres` | Usuario de PostgreSQL |
+| `SPRING_DATASOURCE_PASSWORD` | ✅ Sí (en Render) | `postgres` | Contraseña de PostgreSQL |
+| `SPRING_DATA_MONGODB_URI` | ✅ Sí (en Render) | `mongodb://localhost:27017/gestopago_catalogo` | URI de conexión a MongoDB Atlas (Catálogo NoSQL) |
+| `GESTOPAGO_AES_KEY` | ✅ **Obligatoria** | *(Sin valor por defecto por seguridad)* | Clave secreta para firmar/cifrar el payload de `sendTx.do` con AES |
+| `GESTOPAGO_ID_DISTRIBUIDOR` | Opcional | `83` | ID de distribuidor GestoPago |
+| `GESTOPAGO_CODIGO_DISPOSITIVO` | Opcional | `GPS83-TPV-17` | Código de dispositivo TPV GestoPago |
+| `GESTOPAGO_PASSWORD` | Opcional | `12345678` | Contraseña para renovar el token Bearer de GestoPago |
+| `GESTOPAGO_TX_URL` | Opcional | `https://gestopago.portalventas.net` | URL base del servicio de transacciones (`sendTx.do`) |
