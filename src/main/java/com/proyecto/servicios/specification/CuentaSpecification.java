@@ -10,6 +10,8 @@ import java.util.List;
 
 public class CuentaSpecification {
 
+    private CuentaSpecification() {}
+
     public static Specification<Cuenta> conFiltros(CuentaConsultaRequest filtro) {
         return (root, query, cb) -> {
             if (filtro == null) {

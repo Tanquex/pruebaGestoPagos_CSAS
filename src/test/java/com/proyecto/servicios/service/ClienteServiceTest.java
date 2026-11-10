@@ -292,4 +292,84 @@ class ClienteServiceTest {
 
         verify(clienteRepository).save(cliente);
     }
+
+    @Test
+    @DisplayName("Actualizar parcial con todos los campos opcionales y domicilio")
+    void testActualizarParcial_TodosCampos() {
+        Domicilio dom = Domicilio.builder().calle("Vieja").build();
+        Usuario usr = Usuario.builder().correo("viejo@test.com").build();
+        Cliente cliente = Cliente.builder()
+                .id(1L)
+                .correo("viejo@test.com")
+                .domicilio(dom)
+                .usuario(usr)
+                .build();
+
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente));
+        when(clienteRepository.existsByCorreo("nuevo@test.com")).thenReturn(false);
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(i -> i.getArgument(0));
+
+        ActualizaClienteRequest req = ActualizaClienteRequest.builder()
+                .id(1L)
+                .nombre("Pedro")
+                .segundoNombre("Pablo")
+                .apellidoPaterno("Perez")
+                .apellidoMaterno("Gomez")
+                .estadoCivil("Casado")
+                .correo("nuevo@test.com")
+                .telefonoMovil("5511223344")
+                .telefonoAlternativo("5599887766")
+                .ocupacion("Ingeniero")
+                .empresa("Tech Corp")
+                .ingresoMensual(new BigDecimal("50000.00"))
+                .domicilio(DomicilioDto.builder()
+                        .calle("Nueva")
+                        .numeroExterior("456")
+                        .numeroInterior("B")
+                        .colonia("Centro")
+                        .municipio("Toluca")
+                        .estado("Edomex")
+                        .codigoPostal("50000")
+                        .pais("Mexico")
+                        .build())
+                .build();
+
+        ClienteResponseDto res = clienteService.actualizarParcial(req);
+        assertNotNull(res);
+        assertEquals("nuevo@test.com", cliente.getCorreo());
+        assertEquals("nuevo@test.com", usr.getCorreo());
+        assertEquals("Pedro", cliente.getNombre());
+        assertEquals("Nueva", dom.getCalle());
+    }
+
+    @Test
+    @DisplayName("Actualizar parcial con correo ya en uso lanza ClienteYaExisteException")
+    void testActualizarParcial_CorreoDuplicado() {
+        Cliente cliente = Cliente.builder().id(1L).correo("actual@test.com").build();
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente));
+        when(clienteRepository.existsByCorreo("repetido@test.com")).thenReturn(true);
+
+        ActualizaClienteRequest req = ActualizaClienteRequest.builder()
+                .id(1L)
+                .correo("repetido@test.com")
+                .build();
+
+        assertThrows(ClienteYaExisteException.class, () -> clienteService.actualizarParcial(req));
+    }
+
+    @Test
+    @DisplayName("Consultar clientes con orden DESC o con request nulo")
+    void testConsultarClientes_Variantes() {
+        when(clienteRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        ClienteConsultaRequest reqDesc = ClienteConsultaRequest.builder()
+                .pagina(1)
+                .tamanoPagina(10)
+                .ordenarPor("nombre")
+                .direccionOrden("DESC")
+                .build();
+        assertNotNull(clienteService.consultarClientes(reqDesc));
+        assertNotNull(clienteService.consultarClientes(null));
+    }
 }

@@ -36,6 +36,8 @@ import java.time.Period;
 @Slf4j
 public class ClienteService {
 
+    private static final String MSG_CLIENTE_NO_ENCONTRADO = "No se encontró ningún cliente con ID: ";
+
     private final ClienteRepository clienteRepository;
     private final CuentaRepository cuentaRepository;
     private final UsuarioRepository usuarioRepository;
@@ -160,7 +162,7 @@ public class ClienteService {
     public ClienteResponseDto obtenerClientePorId(Long id) {
         return clienteRepository.findById(id)
                 .map(ClienteResponseDto::fromEntity)
-                .orElseThrow(() -> new ClienteNoEncontradoException("No se encontró ningún cliente con ID: " + id));
+                .orElseThrow(() -> new ClienteNoEncontradoException(MSG_CLIENTE_NO_ENCONTRADO + id));
     }
 
     @Transactional
@@ -169,9 +171,20 @@ public class ClienteService {
         log.info("Actualizando información parcial para cliente ID: {}", id);
 
         Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new ClienteNoEncontradoException("No se encontró ningún cliente con ID: " + id));
+                .orElseThrow(() -> new ClienteNoEncontradoException(MSG_CLIENTE_NO_ENCONTRADO + id));
 
         // Regla: No se permite modificar CURP ni RFC ni número de cuenta (campos controlados por el servidor)
+        actualizarDatosPersonales(cliente, request);
+        actualizarDatosContacto(cliente, request);
+        actualizarDatosLaborales(cliente, request);
+        actualizarDomicilio(cliente, request);
+
+        cliente = clienteRepository.save(cliente);
+        log.info("Cliente ID: {} actualizado exitosamente", id);
+        return ClienteResponseDto.fromEntity(cliente);
+    }
+
+    private void actualizarDatosPersonales(Cliente cliente, ActualizaClienteRequest request) {
         if (request.getNombre() != null && !request.getNombre().isBlank()) {
             cliente.setNombre(request.getNombre().trim());
         }
@@ -184,6 +197,12 @@ public class ClienteService {
         if (request.getApellidoMaterno() != null && !request.getApellidoMaterno().isBlank()) {
             cliente.setApellidoMaterno(request.getApellidoMaterno().trim());
         }
+        if (request.getEstadoCivil() != null && !request.getEstadoCivil().isBlank()) {
+            cliente.setEstadoCivil(request.getEstadoCivil().trim().toUpperCase());
+        }
+    }
+
+    private void actualizarDatosContacto(Cliente cliente, ActualizaClienteRequest request) {
         if (request.getCorreo() != null && !request.getCorreo().isBlank()) {
             String nuevoCorreo = request.getCorreo().trim().toLowerCase();
             if (!nuevoCorreo.equalsIgnoreCase(cliente.getCorreo()) && clienteRepository.existsByCorreo(nuevoCorreo)) {
@@ -200,9 +219,9 @@ public class ClienteService {
         if (request.getTelefonoAlternativo() != null) {
             cliente.setTelefonoAlternativo(request.getTelefonoAlternativo().trim());
         }
-        if (request.getEstadoCivil() != null && !request.getEstadoCivil().isBlank()) {
-            cliente.setEstadoCivil(request.getEstadoCivil().trim().toUpperCase());
-        }
+    }
+
+    private void actualizarDatosLaborales(Cliente cliente, ActualizaClienteRequest request) {
         if (request.getOcupacion() != null && !request.getOcupacion().isBlank()) {
             cliente.setOcupacion(request.getOcupacion().trim());
         }
@@ -212,6 +231,9 @@ public class ClienteService {
         if (request.getIngresoMensual() != null) {
             cliente.setIngresoMensual(request.getIngresoMensual());
         }
+    }
+
+    private void actualizarDomicilio(Cliente cliente, ActualizaClienteRequest request) {
         if (request.getDomicilio() != null && cliente.getDomicilio() != null) {
             Domicilio dom = cliente.getDomicilio();
             if (request.getDomicilio().getCalle() != null) dom.setCalle(request.getDomicilio().getCalle().trim());
@@ -223,10 +245,6 @@ public class ClienteService {
             if (request.getDomicilio().getCodigoPostal() != null) dom.setCodigoPostal(request.getDomicilio().getCodigoPostal().trim());
             if (request.getDomicilio().getPais() != null) dom.setPais(request.getDomicilio().getPais().trim());
         }
-
-        cliente = clienteRepository.save(cliente);
-        log.info("Cliente ID: {} actualizado exitosamente", id);
-        return ClienteResponseDto.fromEntity(cliente);
     }
 
     @Transactional
@@ -235,7 +253,7 @@ public class ClienteService {
         log.info("Ejecutando baja lógica para cliente ID: {}", id);
 
         Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new ClienteNoEncontradoException("No se encontró ningún cliente con ID: " + id));
+                .orElseThrow(() -> new ClienteNoEncontradoException(MSG_CLIENTE_NO_ENCONTRADO + id));
 
         // Regla: Desactivar cliente
         cliente.setActivo(false);
