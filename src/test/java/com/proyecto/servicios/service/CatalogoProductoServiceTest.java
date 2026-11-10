@@ -82,7 +82,7 @@ class CatalogoProductoServiceTest {
         responseMock.setMensaje(mensaje);
         responseMock.setProductos(List.of(p1));
 
-        when(jaxbXmlParser.unmarshal(eq(xmlPrueba), eq(CatalogoXmlResponse.class))).thenReturn(responseMock);
+        when(jaxbXmlParser.unmarshal(xmlPrueba, CatalogoXmlResponse.class)).thenReturn(responseMock);
         when(productoMongoRepository.findByIdProducto(1)).thenReturn(Optional.empty());
         when(productoMongoRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -124,5 +124,62 @@ class CatalogoProductoServiceTest {
 
         assertThrows(GestoPagoIntegrationException.class, () ->
                 catalogoProductoService.sincronizarCatalogo());
+    }
+
+    @Test
+    @DisplayName("Error reportado en respuesta XML por el proveedor")
+    void testSincronizarCatalogo_CodigoError() {
+        String xml = "<CatalogoXmlResponse><Mensaje><Codigo>99</Codigo><Texto>Error</Texto></Mensaje></CatalogoXmlResponse>";
+        when(tokenService.obtenerTokenActivo(83, "GPS83-TPV-17")).thenReturn(Optional.empty());
+        when(catalogoClient.getProductListXml(anyString())).thenReturn(xml);
+
+        CatalogoXmlResponse responseMock = new CatalogoXmlResponse();
+        MensajeXml mensaje = new MensajeXml();
+        mensaje.setCodigo("99");
+        mensaje.setTexto("Error interno");
+        responseMock.setMensaje(mensaje);
+
+        when(jaxbXmlParser.unmarshal(xml, CatalogoXmlResponse.class)).thenReturn(responseMock);
+
+        assertThrows(GestoPagoIntegrationException.class, () -> catalogoProductoService.sincronizarCatalogo());
+    }
+
+    @Test
+    @DisplayName("Catálogo sin productos retorna lista vacía")
+    void testSincronizarCatalogo_SinProductos() {
+        String xml = "<CatalogoXmlResponse/>";
+        when(tokenService.obtenerTokenActivo(83, "GPS83-TPV-17")).thenReturn(Optional.empty());
+        when(catalogoClient.getProductListXml(anyString())).thenReturn(xml);
+
+        CatalogoXmlResponse responseMock = new CatalogoXmlResponse();
+        when(jaxbXmlParser.unmarshal(xml, CatalogoXmlResponse.class)).thenReturn(responseMock);
+
+        List<ProductoDocument> resultado = catalogoProductoService.sincronizarCatalogo();
+        assertNotNull(resultado);
+        assertTrue(resultado.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Consultar productos con idProducto, buscar o sin filtros")
+    void testConsultarProductos_Casos() {
+        ProductoDocument doc = ProductoDocument.builder().idProducto(10).servicio("Telmex").build();
+        when(productoMongoRepository.findByIdProducto(10)).thenReturn(Optional.of(doc));
+        when(productoMongoRepository.findByServicioContainingIgnoreCase("Telmex")).thenReturn(List.of(doc));
+        when(productoMongoRepository.findAll()).thenReturn(List.of(doc));
+
+        // Por idProducto
+        List<ProductoDocument> porId = catalogoProductoService.consultarProductos(ProductoConsultaRequest.builder().idProducto(10).build());
+        assertEquals(1, porId.size());
+
+        // Por buscar
+        List<ProductoDocument> porBuscar = catalogoProductoService.consultarProductos(ProductoConsultaRequest.builder().buscar("Telmex").build());
+        assertEquals(1, porBuscar.size());
+
+        // Sin filtros
+        List<ProductoDocument> todos = catalogoProductoService.consultarProductos(null);
+        assertEquals(1, todos.size());
+
+        // obtenerTodos
+        assertEquals(1, catalogoProductoService.obtenerTodos().size());
     }
 }

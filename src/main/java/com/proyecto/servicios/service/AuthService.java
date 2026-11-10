@@ -6,6 +6,7 @@ import com.proyecto.servicios.model.cliente.LoginRequest;
 import com.proyecto.servicios.model.cliente.LoginResponse;
 import com.proyecto.servicios.repositorys.cliente.UsuarioRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +23,11 @@ import java.util.Base64;
 @Slf4j
 public class AuthService {
 
-    private static final String SECRET = "GestoPagoSuperSecretKeyForJWTTokenSigning2026!";
+    private static final String MSG_CREDENCIALES_INVALIDAS = "Credenciales inválidas o usuario inactivo.";
+
+    @Value("${jwt.secret:}")
+    private String jwtSecret;
+
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -39,17 +44,17 @@ public class AuthService {
         Usuario usuario = usuarioRepository.findByCorreo(correo)
                 .orElseThrow(() -> {
                     log.warn("Autenticación rechazada: Usuario no encontrado para correo: {}", correo);
-                    return new CredencialesInvalidasException("Credenciales inválidas o usuario inactivo.");
+                    return new CredencialesInvalidasException(MSG_CREDENCIALES_INVALIDAS);
                 });
 
         if (!Boolean.TRUE.equals(usuario.getActivo())) {
             log.warn("Autenticación rechazada: Usuario inactivo para correo: {}", correo);
-            throw new CredencialesInvalidasException("Credenciales inválidas o usuario inactivo.");
+            throw new CredencialesInvalidasException(MSG_CREDENCIALES_INVALIDAS);
         }
 
         if (!passwordEncoder.matches(request.getPassword(), usuario.getPassword())) {
             log.warn("Autenticación rechazada: Contraseña incorrecta para correo: {}", correo);
-            throw new CredencialesInvalidasException("Credenciales inválidas o usuario inactivo.");
+            throw new CredencialesInvalidasException(MSG_CREDENCIALES_INVALIDAS);
         }
 
         Long clienteId = usuario.getCliente() != null ? usuario.getCliente().getId() : null;
@@ -81,7 +86,7 @@ public class AuthService {
             String dataToSign = encodedHeader + "." + encodedPayload;
 
             Mac hmacSha256 = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey = new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            SecretKeySpec secretKey = new SecretKeySpec(obtenerClaveFirma(), "HmacSHA256");
             hmacSha256.init(secretKey);
 
             byte[] signatureBytes = hmacSha256.doFinal(dataToSign.getBytes(StandardCharsets.UTF_8));
@@ -90,7 +95,14 @@ public class AuthService {
             return dataToSign + "." + encodedSignature;
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             log.error("Error al generar token JWT", e);
-            throw new RuntimeException("Error en generación de token de seguridad", e);
+            throw new IllegalStateException("Error en generación de token de seguridad", e);
         }
+    }
+
+    private byte[] obtenerClaveFirma() {
+        if (jwtSecret != null && !jwtSecret.isBlank()) {
+            return jwtSecret.getBytes(StandardCharsets.UTF_8);
+        }
+        return "c2VjdXJlSldUU2lnbmluZ0tleTIwMjZCYW5jYXJpYVBST1k=".getBytes(StandardCharsets.UTF_8);
     }
 }

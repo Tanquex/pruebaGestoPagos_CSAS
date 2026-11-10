@@ -10,6 +10,8 @@ import java.util.List;
 
 public class UsuarioSpecification {
 
+    private UsuarioSpecification() {}
+
     public static Specification<Usuario> conFiltros(UsuarioConsultaRequest filtro) {
         return (root, query, cb) -> {
             if (filtro == null) {

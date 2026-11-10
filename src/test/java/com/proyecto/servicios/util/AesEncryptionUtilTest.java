@@ -45,4 +45,12 @@ class AesEncryptionUtilTest {
         assertThrows(IllegalStateException.class, () -> aesUtil.cifrar("dato", ""));
         assertThrows(IllegalStateException.class, () -> aesUtil.cifrar("dato", null));
     }
+
+    @Test
+    @DisplayName("Descifrado con payload corrupto o clave incorrecta")
+    void testDescifradoInvalido() {
+        assertThrows(IllegalStateException.class, () -> aesUtil.descifrar("corto", secretKey));
+        assertThrows(IllegalStateException.class, () -> aesUtil.descifrar("Y29ydG8=", secretKey));
+        assertThrows(IllegalStateException.class, () -> aesUtil.descifrar("dGVzdA==", ""));
+    }
 }

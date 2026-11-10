@@ -4,6 +4,7 @@ import com.proyecto.servicios.entity.cliente.Cliente;
 import com.proyecto.servicios.entity.cliente.Usuario;
 import com.proyecto.servicios.exception.ClienteNoEncontradoException;
 import com.proyecto.servicios.exception.ClienteYaExisteException;
+import com.proyecto.servicios.exception.UsuarioNoEncontradoException;
 import com.proyecto.servicios.exception.ValidacionNegocioException;
 import com.proyecto.servicios.model.cliente.CrearUsuarioRequest;
 import com.proyecto.servicios.model.cliente.UsuarioConsultaRequest;
@@ -139,5 +140,32 @@ class UsuarioServiceTest {
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
         assertEquals("usuario@test.com", result.getContent().get(0).getCorreo());
+    }
+
+    @Test
+    @DisplayName("Obtener usuario por ID existente y no existente")
+    void testObtenerUsuarioPorId() {
+        Usuario u = Usuario.builder().id(1L).correo("usuario@test.com").activo(true).build();
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(u));
+        when(usuarioRepository.findById(2L)).thenReturn(Optional.empty());
+
+        assertNotNull(usuarioService.obtenerUsuarioPorId(1L));
+        assertThrows(UsuarioNoEncontradoException.class, () -> usuarioService.obtenerUsuarioPorId(2L));
+    }
+
+    @Test
+    @DisplayName("Consultar usuarios con orden DESC o request nulo")
+    void testConsultarUsuarios_Variantes() {
+        when(usuarioRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        UsuarioConsultaRequest reqDesc = UsuarioConsultaRequest.builder()
+                .pagina(1)
+                .tamanoPagina(10)
+                .ordenarPor("correo")
+                .direccionOrden("DESC")
+                .build();
+        assertNotNull(usuarioService.consultarUsuarios(reqDesc));
+        assertNotNull(usuarioService.consultarUsuarios(null));
     }
 }

@@ -163,4 +163,79 @@ class CuentaServiceTest {
         assertEquals("BLOQUEADA", dto.getEstatus());
         assertFalse(dto.getActivo());
     }
+
+    @Test
+    @DisplayName("Crear cuenta con saldo inicial negativo lanza ValidacionNegocioException")
+    void testCrearCuenta_SaldoNegativo() {
+        Cliente cliente = Cliente.builder().id(1L).activo(true).build();
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente));
+
+        CrearCuentaRequest req = CrearCuentaRequest.builder()
+                .clienteId(1L)
+                .saldoInicial(new BigDecimal("-100.00"))
+                .build();
+
+        assertThrows(ValidacionNegocioException.class, () -> cuentaService.crearCuenta(req));
+    }
+
+    @Test
+    @DisplayName("Actualizar estatus a ACTIVA con cliente inactivo lanza ValidacionNegocioException")
+    void testActualizarEstatus_ClienteInactivo() {
+        Cliente clienteInactivo = Cliente.builder().id(2L).activo(false).build();
+        Cuenta cuenta = Cuenta.builder()
+                .numeroCuenta("4152000011112222")
+                .estatus("INACTIVA")
+                .activo(false)
+                .cliente(clienteInactivo)
+                .build();
+
+        when(cuentaRepository.findByNumeroCuenta("4152000011112222")).thenReturn(Optional.of(cuenta));
+
+        ActualizaCuentaRequest req = ActualizaCuentaRequest.builder()
+                .numeroCuenta("4152000011112222")
+                .estatus("ACTIVA")
+                .build();
+
+        assertThrows(ValidacionNegocioException.class, () -> cuentaService.actualizarEstatus(req));
+    }
+
+    @Test
+    @DisplayName("Actualizar estatus a ACTIVA con cliente activo activa la cuenta")
+    void testActualizarEstatus_ReactivarExitosa() {
+        Cliente clienteActivo = Cliente.builder().id(2L).activo(true).build();
+        Cuenta cuenta = Cuenta.builder()
+                .numeroCuenta("4152000011112222")
+                .estatus("INACTIVA")
+                .activo(false)
+                .cliente(clienteActivo)
+                .build();
+
+        when(cuentaRepository.findByNumeroCuenta("4152000011112222")).thenReturn(Optional.of(cuenta));
+        when(cuentaRepository.save(any(Cuenta.class))).thenAnswer(i -> i.getArgument(0));
+
+        ActualizaCuentaRequest req = ActualizaCuentaRequest.builder()
+                .numeroCuenta("4152000011112222")
+                .estatus("ACTIVA")
+                .build();
+
+        CuentaResponseDto dto = cuentaService.actualizarEstatus(req);
+        assertEquals("ACTIVA", dto.getEstatus());
+        assertTrue(dto.getActivo());
+    }
+
+    @Test
+    @DisplayName("Consultar cuentas con orden DESC o con request nulo")
+    void testConsultarCuentas_Variantes() {
+        when(cuentaRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        CuentaConsultaRequest reqDesc = CuentaConsultaRequest.builder()
+                .pagina(1)
+                .tamanoPagina(10)
+                .ordenarPor("numeroCuenta")
+                .direccionOrden("DESC")
+                .build();
+        assertNotNull(cuentaService.consultarCuentas(reqDesc));
+        assertNotNull(cuentaService.consultarCuentas(null));
+    }
 }

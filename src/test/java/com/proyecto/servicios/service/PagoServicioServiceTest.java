@@ -17,6 +17,7 @@ import com.proyecto.servicios.model.cliente.PagoServicioRequest;
 import com.proyecto.servicios.model.cliente.PagoServicioResponseDto;
 import com.proyecto.servicios.repositorys.catalogo.ProductoMongoRepository;
 import com.proyecto.servicios.repositorys.cliente.CuentaRepository;
+import com.proyecto.servicios.model.cliente.TransaccionConsultaRequest;
 import com.proyecto.servicios.repositorys.cliente.TransaccionServicioRepository;
 import com.proyecto.servicios.util.AesEncryptionUtil;
 import com.proyecto.servicios.util.JaxbXmlParser;
@@ -29,6 +30,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -169,7 +173,8 @@ class PagoServicioServiceTest {
     void timeoutQuedaEnRevision() {
         org.mockito.Mockito.when(txClient.enviarTransaccionJson(anyString(), anyString())).thenThrow(timeout());
 
-        assertThrows(GestoPagoResultadoInciertoException.class, () -> servicio.procesarPagoServicio(solicitud("100.00")));
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(GestoPagoResultadoInciertoException.class, () -> servicio.procesarPagoServicio(request));
 
         assertNotNull(guardada.get());
         assertEquals("EN_REVISION", guardada.get().getEstatus());
@@ -184,7 +189,8 @@ class PagoServicioServiceTest {
         org.mockito.Mockito.when(txClient.enviarTransaccionJson(anyString(), anyString()))
                 .thenThrow(new FeignException.InternalServerError("error", feignRequest, null, null));
 
-        assertThrows(GestoPagoResultadoInciertoException.class, () -> servicio.procesarPagoServicio(solicitud("100.00")));
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(GestoPagoResultadoInciertoException.class, () -> servicio.procesarPagoServicio(request));
 
         assertEquals("EN_REVISION", guardada.get().getEstatus());
         verify(cuentaRepository, never()).descontarSaldoSiSuficiente(anyString(), any(BigDecimal.class));
@@ -195,7 +201,8 @@ class PagoServicioServiceTest {
     void respuestaIlegibleEsIncierta() {
         org.mockito.Mockito.when(txClient.enviarTransaccionJson(anyString(), anyString())).thenReturn("OK");
 
-        assertThrows(GestoPagoResultadoInciertoException.class, () -> servicio.procesarPagoServicio(solicitud("100.00")));
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(GestoPagoResultadoInciertoException.class, () -> servicio.procesarPagoServicio(request));
 
         assertEquals("EN_REVISION", guardada.get().getEstatus());
         verify(cuentaRepository, never()).descontarSaldoSiSuficiente(anyString(), any(BigDecimal.class));
@@ -219,7 +226,8 @@ class PagoServicioServiceTest {
     void sinTokenNoSeEnvia() {
         org.mockito.Mockito.when(tokenService.obtenerTokenActivo(eq(83), anyString())).thenReturn(Optional.empty());
 
-        assertThrows(GestoPagoIntegrationException.class, () -> servicio.procesarPagoServicio(solicitud("100.00")));
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(GestoPagoIntegrationException.class, () -> servicio.procesarPagoServicio(request));
 
         assertEquals("RECHAZADA", guardada.get().getEstatus());
         verify(txClient, never()).enviarTransaccionJson(anyString(), anyString());
@@ -231,7 +239,8 @@ class PagoServicioServiceTest {
     void pinIncorrecto() {
         org.mockito.Mockito.when(passwordEncoder.matches("Password123*", HASH)).thenReturn(false);
 
-        assertThrows(CredencialesInvalidasException.class, () -> servicio.procesarPagoServicio(solicitud("100.00")));
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(CredencialesInvalidasException.class, () -> servicio.procesarPagoServicio(request));
 
         verify(productoMongoRepository, never()).findByIdProductoAndIdServicio(anyInt(), anyInt());
         verify(transaccionRepository, never()).save(any(TransaccionServicio.class));
@@ -243,7 +252,8 @@ class PagoServicioServiceTest {
     void saldoInsuficiente() {
         cuenta.setSaldo(new BigDecimal("50.00"));
 
-        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(solicitud("100.00")));
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(request));
 
         verify(transaccionRepository, never()).save(any(TransaccionServicio.class));
         verify(txClient, never()).enviarTransaccionJson(anyString(), anyString());
@@ -254,7 +264,8 @@ class PagoServicioServiceTest {
     void saldoComprometidoNoSeGastaDosVeces() {
         org.mockito.Mockito.when(transaccionRepository.sumarMontosComprometidos(10L)).thenReturn(new BigDecimal("2450.00"));
 
-        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(solicitud("100.00")));
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(request));
 
         verify(transaccionRepository, never()).save(any(TransaccionServicio.class));
         verify(txClient, never()).enviarTransaccionJson(anyString(), anyString());
@@ -265,7 +276,8 @@ class PagoServicioServiceTest {
     void randomStringDuplicado() {
         org.mockito.Mockito.when(transaccionRepository.existsByRandomString("TX-TEST-0001")).thenReturn(true);
 
-        assertThrows(TransaccionDuplicadaException.class, () -> servicio.procesarPagoServicio(solicitud("100.00")));
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(TransaccionDuplicadaException.class, () -> servicio.procesarPagoServicio(request));
 
         verify(transaccionRepository, never()).save(any(TransaccionServicio.class));
         verify(txClient, never()).enviarTransaccionJson(anyString(), anyString());
@@ -274,7 +286,8 @@ class PagoServicioServiceTest {
     @Test
     @DisplayName("Un monto distinto al precio del catálogo se rechaza antes de llamar al proveedor")
     void montoNoCoincideConCatalogo() {
-        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(solicitud("50.00")));
+        PagoServicioRequest request = solicitud("50.00");
+        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(request));
 
         verify(transaccionRepository, never()).save(any(TransaccionServicio.class));
         verify(txClient, never()).enviarTransaccionJson(anyString(), anyString());
@@ -289,5 +302,83 @@ class PagoServicioServiceTest {
         assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(request));
 
         verify(txClient, never()).enviarTransaccionJson(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Cuenta inactiva o bloqueada rechaza el pago")
+    void cuentaInactivaRechaza() {
+        cuenta.setActivo(false);
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(request));
+    }
+
+    @Test
+    @DisplayName("Cliente inactivo rechaza el pago")
+    void clienteInactivoRechaza() {
+        cuenta.getCliente().setActivo(false);
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(request));
+    }
+
+    @Test
+    @DisplayName("Usuario inactivo rechaza con CredencialesInvalidasException")
+    void usuarioInactivoRechaza() {
+        cuenta.getCliente().getUsuario().setActivo(false);
+        PagoServicioRequest request = solicitud("100.00");
+        assertThrows(CredencialesInvalidasException.class, () -> servicio.procesarPagoServicio(request));
+    }
+
+    @Test
+    @DisplayName("Validación de banderas CON_REFERENCIA e inválidas")
+    void validacionBanderas() {
+        // Con referencia válida
+        PagoServicioRequest reqConRef = solicitud("100.00");
+        reqConRef.setBandera("CON_REFERENCIA");
+        reqConRef.setTelefonoReferencia("REF-12345");
+        org.mockito.Mockito.when(txClient.enviarTransaccionJson(anyString(), anyString())).thenReturn(XML_EXITO);
+        org.mockito.Mockito.when(cuentaRepository.descontarSaldoSiSuficiente(anyString(), any(BigDecimal.class))).thenReturn(1);
+        assertNotNull(servicio.procesarPagoServicio(reqConRef));
+
+        // Con referencia demasiado corta
+        PagoServicioRequest reqCorta = solicitud("100.00");
+        reqCorta.setBandera("CON_REFERENCIA");
+        reqCorta.setTelefonoReferencia("12");
+        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(reqCorta));
+
+        // Bandera inválida
+        PagoServicioRequest reqInvalida = solicitud("100.00");
+        reqInvalida.setBandera("DESCONOCIDA");
+        assertThrows(ValidacionNegocioException.class, () -> servicio.procesarPagoServicio(reqInvalida));
+    }
+
+    @Test
+    @DisplayName("Error 4xx del proveedor externo se interpreta como RECHAZADA")
+    void error4xxProveedor() {
+        Request feignRequest = Request.create(Request.HttpMethod.POST, "/sistema/service/sendTx.do",
+                Collections.emptyMap(), null, StandardCharsets.UTF_8, null);
+        org.mockito.Mockito.when(txClient.enviarTransaccionJson(anyString(), anyString()))
+                .thenThrow(new FeignException.BadRequest("bad request", feignRequest, null, null));
+
+        PagoServicioRequest request = solicitud("100.00");
+        PagoServicioResponseDto respuesta = servicio.procesarPagoServicio(request);
+
+        assertEquals("RECHAZADA", respuesta.getEstatus());
+        verify(cuentaRepository, never()).descontarSaldoSiSuficiente(anyString(), any(BigDecimal.class));
+    }
+
+    @Test
+    @DisplayName("Consultar transacciones con orden DESC o request nulo")
+    void testConsultarTransacciones_Variantes() {
+        org.mockito.Mockito.when(transaccionRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        TransaccionConsultaRequest reqDesc = TransaccionConsultaRequest.builder()
+                .pagina(1)
+                .tamanoPagina(10)
+                .ordenarPor("id")
+                .direccionOrden("DESC")
+                .build();
+        assertNotNull(servicio.consultarTransacciones(reqDesc));
+        assertNotNull(servicio.consultarTransacciones(null));
     }
 }

@@ -119,6 +119,9 @@ public class PagoServicioService {
                 enmascararCuenta(request.getNumCuenta()), request.getIdServicio(), request.getIdProducto());
 
         PagoPreparado preparado = transactionTemplate.execute(status -> prepararPago(request));
+        if (preparado == null) {
+            throw new IllegalStateException("Error al preparar la transacción de pago");
+        }
         ResultadoProveedor resultado = invocarProveedor(preparado);
 
         if (resultado == null) {
@@ -128,7 +131,11 @@ public class PagoServicioService {
                     "GestoPago devolvió una respuesta no concluyente. La transacción quedó EN_REVISION y no se descontó saldo.");
         }
 
-        return transactionTemplate.execute(status -> liquidarPago(preparado, resultado));
+        PagoServicioResponseDto respuesta = transactionTemplate.execute(status -> liquidarPago(preparado, resultado));
+        if (respuesta == null) {
+            throw new IllegalStateException("Error al liquidar la transacción de pago");
+        }
+        return respuesta;
     }
 
     @Transactional(readOnly = true)
